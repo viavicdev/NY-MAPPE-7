@@ -1,137 +1,137 @@
 # Ny Mappe (7)
 
-A macOS menu bar app for **file staging**, **clipboard history**, **screenshot capture**, and **path copying**. The panel floats above all windows and hides from the Dock.
+En macOS menybar-app for **fil-staging**, **utklippshistorikk**, **skjermbilder** og **filsti-kopiering**. Panelet svever over alle vinduer og skjuler seg fra Dock.
 
-**Requirements:** macOS 13.0+, Xcode Command Line Tools (`xcode-select --install`). Xcode IDE is **NOT** required.
+**Krav:** macOS 13.0+, Xcode Command Line Tools (`xcode-select --install`). Xcode IDE er **IKKE** nødvendig.
 
-**Architectures:** Universal binary — runs natively on both **Intel (x86_64)** and **Apple Silicon (arm64)**.
+**Arkitekturer:** Universal binary — kjører nativt på både **Intel (x86_64)** og **Apple Silicon (arm64)**.
 
-**Languages:** Norwegian (default) and English. Switch in Settings → Language.
-
----
-
-## Features
-
-### Four tabs
-
-| Tab | Icon | Description |
-|-----|------|-------------|
-| **Files** | `doc.on.doc` | Drag files in manually. Copies are stored in a staging cache (originals are never touched). Drag out to other apps. |
-| **Screen** | `camera.viewfinder` | Automatic screenshot capture. Toggle on/off with the camera icon in the title bar. |
-| **Clipboard** | `doc.on.clipboard` | Automatic clipboard history. Captures all text you copy (⌘C). Up to 200 entries. Searchable. |
-| **Path** | `folder` | Drop files/folders from Finder to capture their full path. Auto-copies to clipboard. |
-
-### Clipboard tab details
-- Text is captured automatically while the app is running (polls `NSPasteboard.general` every 0.5s)
-- **Search**: Filter clipboard entries in real-time with the search bar
-- **Multi-select**: Tap cards to select/deselect. Selected items get a blue border.
-- **Copy selected**: Combines selected clips with double newlines (`\n\n`)
-- **Export .txt / .csv**: Save selected clips to file
-- **Pin**: Pinned clips are not deleted when clearing
-- Duplicates of the last entry are ignored. File copies (⌘C on files in Finder) are NOT captured.
-
-### Simple / Full mode
-Toggle in Settings (gear icon):
-- **Simple** (default): Shorter panel (340px). No filter/sort buttons.
-- **Full**: Taller panel (520px). Shows filter pills (All, Images, Video, etc.) and sort menu (Name, Size, Date Added).
-
-### Theme
-Three choices in Settings: Dark, Light, Follow System. All colors are adaptive.
-
-### Menu bar
-- **Left-click** the icon to toggle the panel
-- **Right-click** for a context menu: Open Panel, About, Quit
-- Panel floats above all windows (`NSPanel` with `level = .floating`)
-- No Dock icon (`LSUIElement = true`)
-- Panel auto-closes after successful file drag-out
-
-### About dialog
-Accessible from Settings or right-click menu. Shows version info and a link to this GitHub repository.
+**Språk:** Norsk (standard) og engelsk. Bytt i Innstillinger → Språk.
 
 ---
 
-## Project Structure
+## Funksjoner
+
+### Fire faner
+
+| Fane | Ikon | Beskrivelse |
+|------|------|-------------|
+| **Filer** | `doc.on.doc` | Dra filer inn manuelt. Kopier lagres i en staging-cache (originaler røres aldri). Dra ut til andre apper. |
+| **Skjerm** | `camera.viewfinder` | Automatisk skjermbildefangst. Slå av/på med kamera-ikonet i tittellinja. |
+| **Utklipp** | `doc.on.clipboard` | Automatisk utklippshistorikk. Fanger all tekst du kopierer (⌘C). Opptil 200 oppføringer. Søkbar. |
+| **Path** | `folder` | Slipp filer/mapper fra Finder for å fange full filsti. Kopieres automatisk til utklippstavlen. |
+
+### Utklipp-fanen i detalj
+- Tekst fanges automatisk mens appen kjører (poller `NSPasteboard.general` hvert 0.5s)
+- **Søk**: Filtrer oppføringer i sanntid med søkefeltet
+- **Flervalg**: Trykk på kort for å velge/fjerne. Valgte elementer får blå ramme.
+- **Kopier valgte**: Kombinerer valgte klipp med doble linjeskift (`\n\n`)
+- **Eksporter .txt / .csv**: Lagre valgte klipp til fil
+- **Fest**: Festede klipp slettes ikke ved tømming
+- Duplikater av siste oppføring ignoreres. Filkopier (⌘C på filer i Finder) fanges IKKE.
+
+### Enkel / Full modus
+Veksle i Innstillinger (tannhjul-ikonet):
+- **Enkel** (standard): Kortere panel (340px). Ingen filter/sorteringsknapper.
+- **Full**: Høyere panel (520px). Viser filtervalg (Alle, Bilder, Video, osv.) og sorteringsmeny (Navn, Størrelse, Dato).
+
+### Tema
+Tre valg i Innstillinger: Mørk, Lys, Følg system. Alle farger er adaptive.
+
+### Menybar
+- **Venstreklikk** på ikonet for å vise/skjule panelet
+- **Høyreklikk** for kontekstmeny: Åpne panel, Om, Avslutt
+- Panelet svever over alle vinduer (`NSPanel` med `level = .floating`)
+- Ingen Dock-ikon (`LSUIElement = true`)
+- Panelet lukkes automatisk etter vellykket fil-utdragning
+
+### Om-dialog
+Tilgjengelig fra Innstillinger eller høyreklikk-menyen. Viser versjonsinformasjon og lenke til dette GitHub-repoet.
+
+---
+
+## Prosjektstruktur
 
 ```
 ny-mappe-7/
-├── README.md                           # This file
-├── LICENSE                             # MIT License
-├── build.sh                            # Universal build script (Intel + Apple Silicon)
+├── README.md                           # Denne filen
+├── LICENSE                             # MIT-lisens
+├── build.sh                            # Universal build-script (Intel + Apple Silicon)
 ├── .gitignore
 │
-└── Ny Mappe 7/                         # SOURCE CODE
-    ├── NyMappe7App.swift               # App entry point, MenuBarAppDelegate, FloatingPanel, right-click menu
+└── Ny Mappe 7/                         # KILDEKODE
+    ├── NyMappe7App.swift               # App-inngang, MenuBarAppDelegate, FloatingPanel, høyreklikkmeny
     │
     ├── Models/
-    │   ├── AppState.swift              # Codable struct for JSON persistence of all state
-    │   ├── StashItem.swift             # File model (id, URL, type, size, isScreenshot)
-    │   ├── StashSet.swift              # File set/group model
-    │   ├── ClipboardEntry.swift        # Clipboard model (id, text, timestamp, isPinned)
-    │   ├── PathEntry.swift             # Path model (id, path, name, isDirectory, isPinned)
-    │   └── Localization.swift          # AppLanguage enum + Loc struct (Norwegian/English)
+    │   ├── AppState.swift              # Codable struct for JSON-lagring av all tilstand
+    │   ├── StashItem.swift             # Filmodell (id, URL, type, størrelse, isScreenshot)
+    │   ├── StashSet.swift              # Filsett/gruppemodell
+    │   ├── ClipboardEntry.swift        # Utklippsmodell (id, tekst, tidspunkt, isPinned)
+    │   ├── PathEntry.swift             # Sti-modell (id, sti, navn, isDirectory, isPinned)
+    │   └── Localization.swift          # AppLanguage enum + Loc struct (norsk/engelsk)
     │
     ├── ViewModels/
-    │   └── StashViewModel.swift        # All app logic. @MainActor, ObservableObject.
+    │   └── StashViewModel.swift        # All app-logikk. @MainActor, ObservableObject.
     │
     ├── Services/
-    │   ├── StagingService.swift        # Copies files to cache, zip, validation
-    │   ├── ThumbnailService.swift      # QuickLook thumbnail generation
-    │   ├── PersistenceService.swift    # JSON load/save to ~/Library/Application Support/GeniDrop/
-    │   ├── ScreenshotWatcher.swift     # Monitors screenshot folder with DispatchSource
-    │   └── ClipboardWatcher.swift      # Polls NSPasteboard.general for new text
+    │   ├── StagingService.swift        # Kopierer filer til cache, zip, validering
+    │   ├── ThumbnailService.swift      # QuickLook-miniatyrbilder
+    │   ├── PersistenceService.swift    # JSON last/lagre til ~/Library/Application Support/GeniDrop/
+    │   ├── ScreenshotWatcher.swift     # Overvåker skjermbildemappen
+    │   └── ClipboardWatcher.swift      # Poller NSPasteboard.general for ny tekst
     │
     └── Views/
-        ├── ContentView.swift           # Main view: title bar, tabs, drop zone, settings menu, resize
-        ├── CardsGridView.swift         # Grid/list of file cards
+        ├── ContentView.swift           # Hovedvisning: tittelbar, faner, slippsone, innstillingsmeny
+        ├── CardsGridView.swift         # Rutenett med filkort
         └── Components/
-            ├── DesignTokens.swift      # All colors, fonts, styles. Adaptive light/dark.
-            ├── FileCardView.swift      # Single file card with thumbnail, stripe, hover
-            ├── DraggableCardWrapper.swift   # NSViewRepresentable for NSDraggingSource per card
-            ├── DragSourceView.swift    # NSViewRepresentable for "Drag all" button
-            ├── DragAllButton.swift     # SwiftUI wrapper for drag-all
-            ├── MultiFileDragButton.swift    # Drag button for selected files
-            ├── ClipboardListView.swift # Clipboard tab: list, search, multi-select, copy, export
-            ├── PathListView.swift      # Path tab: list, copy, pin, reveal in Finder
-            ├── HeaderView.swift        # Stats row + filter/sort (shown in full mode)
-            ├── ToolbarView.swift       # "Add files" button (Files tab only)
-            ├── ActionBarView.swift     # "Remove selected" / "Clear" buttons
-            ├── EmptyStateView.swift    # Empty state per tab with animation
-            ├── ErrorBanner.swift       # Error message banner
-            ├── TypeBadge.swift         # File type badge (Image, Video, etc.)
-            ├── SetSelectorView.swift   # Set picker and management
-            └── BatchRenameSheet.swift  # Batch rename dialog
+            ├── DesignTokens.swift      # Alle farger, fonter, stiler. Adaptiv lys/mørk.
+            ├── FileCardView.swift      # Enkelt filkort med miniatyrbilde og hover
+            ├── DraggableCardWrapper.swift   # NSViewRepresentable for NSDraggingSource per kort
+            ├── DragSourceView.swift    # NSViewRepresentable for "Dra alle"-knappen
+            ├── DragAllButton.swift     # SwiftUI-wrapper for dra-alle
+            ├── MultiFileDragButton.swift    # Dra-knapp for valgte filer
+            ├── ClipboardListView.swift # Utklipp-fane: liste, søk, flervalg, kopier, eksporter
+            ├── PathListView.swift      # Path-fane: liste, kopier, fest, vis i Finder
+            ├── HeaderView.swift        # Statistikkrad + filter/sortering (vises i full modus)
+            ├── ToolbarView.swift       # "Legg til filer"-knapp (kun Filer-fanen)
+            ├── ActionBarView.swift     # "Fjern valgte" / "Tøm"-knapper
+            ├── EmptyStateView.swift    # Tom tilstand per fane med animasjon
+            ├── ErrorBanner.swift       # Feilmeldingsbanner
+            ├── TypeBadge.swift         # Filtype-merke (Bilde, Video, osv.)
+            ├── SetSelectorView.swift   # Settvelger og -administrasjon
+            └── BatchRenameSheet.swift  # Batch-omdøpningsdialog
 ```
 
 ---
 
-## Building
+## Bygge
 
-### Prerequisites
-- macOS 14+ with Xcode Command Line Tools: `xcode-select --install`
-- **Xcode IDE is NOT required**
+### Forutsetninger
+- macOS 14+ med Xcode Command Line Tools: `xcode-select --install`
+- **Xcode IDE er IKKE nødvendig**
 
-### Quick build (universal binary)
+### Bygg (universal binary)
 
 ```bash
 ./build.sh
 ```
 
-This builds for both Intel and Apple Silicon, creates a `.app` bundle, and outputs:
+Dette bygger for både Intel og Apple Silicon, lager en `.app`-bundle, og gir:
 ```
 ✅ Build complete!
    App:           ./Ny Mappe (7) v2.app
    Architectures: x86_64 arm64
 ```
 
-### Run
+### Kjør
 
 ```bash
 open "Ny Mappe (7) v2.app"
 ```
 
-Or double-click the `.app` in Finder.
+Eller dobbeltklikk `.app`-filen i Finder.
 
-### Install
+### Installer
 
 ```bash
 cp -r "Ny Mappe (7) v2.app" /Applications/
@@ -139,67 +139,67 @@ cp -r "Ny Mappe (7) v2.app" /Applications/
 
 ---
 
-## Data Storage
+## Datalagring
 
-All data is stored under `~/Library/Application Support/GeniDrop/`:
+All data lagres under `~/Library/Application Support/GeniDrop/`:
 
-| Path | Contents |
-|------|----------|
-| `state.json` | All state: sets, files, clipboard history, settings, language (JSON, Codable) |
-| `StagingCache/<setId>/` | Copied files per set |
-| `Thumbnails/` | Generated thumbnails |
-| `Exports/` | Temporary zip files |
+| Sti | Innhold |
+|-----|---------|
+| `state.json` | All tilstand: sett, filer, utklippshistorikk, innstillinger, språk (JSON, Codable) |
+| `StagingCache/<setId>/` | Kopierte filer per sett |
+| `Thumbnails/` | Genererte miniatyrbilder |
+| `Exports/` | Midlertidige zip-filer |
 
-### Reset all data
-Delete the folder: `rm -rf ~/Library/Application\ Support/GeniDrop/`
-
----
-
-## Keyboard Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| `⌘A` | Select all (context-aware per tab) |
-| `⌘V` | Paste files from clipboard (Files/Screenshots tabs) |
-| `Delete` | Remove selected items |
-| `Space` | Quick Look first selected file |
-| `Escape` | Deselect all, or close panel if nothing selected |
+### Tilbakestill all data
+Slett mappen: `rm -rf ~/Library/Application\ Support/GeniDrop/`
 
 ---
 
-## Technical Details
+## Tastatursnarveier
 
-### Drag and Drop
-- **Drag in**: Custom `ExternalDropZone` (`NSViewRepresentable`) that rejects internal drags.
-- **Drag out**: `DraggableCardWrapper` and `DragSourceView` implement `NSDraggingSource`. `mouseDownCanMoveWindow = false` prevents window movement.
-- **Auto-close**: Panel closes automatically after successful drag-out (`operation == .copy`).
+| Snarvei | Handling |
+|---------|---------|
+| `⌘A` | Velg alle (kontekst-bevisst per fane) |
+| `⌘V` | Lim inn filer fra utklippstavlen (Filer/Skjerm-fanene) |
+| `Delete` | Fjern valgte elementer |
+| `Space` | Quick Look på første valgte fil |
+| `Escape` | Fjern valg, eller lukk panel hvis ingenting er valgt |
 
-### Menu bar / Floating panel
-- `NSStatusItem` with SF Symbol `tray.and.arrow.down.fill`
-- Left-click toggles panel, right-click shows context menu (Open, About, Quit)
-- `FloatingPanel` (subclass of `NSPanel`) with `level = .floating`, `hidesOnDeactivate = false`
+---
+
+## Tekniske detaljer
+
+### Dra og slipp
+- **Dra inn**: Egendefinert `ExternalDropZone` (`NSViewRepresentable`) som avviser interne drag.
+- **Dra ut**: `DraggableCardWrapper` og `DragSourceView` implementerer `NSDraggingSource`. `mouseDownCanMoveWindow = false` hindrer vinduflytting.
+- **Auto-lukking**: Panelet lukkes automatisk etter vellykket utdragning (`operation == .copy`).
+
+### Menybar / Flytende panel
+- `NSStatusItem` med SF Symbol `tray.and.arrow.down.fill`
+- Venstreklikk veksler panel, høyreklikk viser kontekstmeny (Åpne, Om, Avslutt)
+- `FloatingPanel` (subklasse av `NSPanel`) med `level = .floating`, `hidesOnDeactivate = false`
 - `collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]`
 
-### Localization
-- Two languages: Norwegian (`no`) and English (`en`)
-- All UI strings in `Localization.swift` via the `Loc` struct
-- Language choice persisted in `state.json`
-- Models use `AppLanguage.current` static for computed properties
+### Lokalisering
+- To språk: norsk (`no`) og engelsk (`en`)
+- Alle UI-strenger i `Localization.swift` via `Loc`-structen
+- Språkvalg lagres i `state.json`
+- Modeller bruker `AppLanguage.current` statisk property
 
-### Persistence
-- `AppState` is `Codable` — serialized to JSON with 0.5s debounce
-- Includes: sets, files, clipboard history, path entries, settings, language
-
----
-
-## Known Limitations
-
-- **No App Sandbox**: The app runs without sandbox to allow free file access and `/usr/bin/ditto` for zip.
-- **No .xcodeproj**: Built directly with `swiftc`. All source files must be listed in `build.sh`.
-- **New files**: If you add a new `.swift` file, you MUST add it to the `SOURCES` array in `build.sh`.
+### Persistens
+- `AppState` er `Codable` — serialiseres til JSON med 0.5s debounce
+- Inkluderer: sett, filer, utklippshistorikk, sti-oppføringer, innstillinger, språk
 
 ---
 
-## License
+## Kjente begrensninger
 
-MIT — see [LICENSE](LICENSE).
+- **Ingen App Sandbox**: Appen kjører uten sandbox for fri filtilgang og `/usr/bin/ditto` for zip.
+- **Ingen .xcodeproj**: Bygges direkte med `swiftc`. Alle kildefiler må listes i `build.sh`.
+- **Nye filer**: Hvis du legger til en ny `.swift`-fil, MÅ du legge den til i `SOURCES`-arrayen i `build.sh`.
+
+---
+
+## Lisens
+
+MIT — se [LICENSE](LICENSE).
