@@ -1,0 +1,18 @@
+# Build artifacts
+.build/
+*.app/
+DerivedData/
+
+# macOS
+.DS_Store
+*.swp
+*~
+
+# Xcode (if used)
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+
+# Environment
+.env
+.env.local
