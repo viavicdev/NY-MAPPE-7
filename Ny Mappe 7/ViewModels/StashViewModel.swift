@@ -42,6 +42,12 @@ final class StashViewModel: ObservableObject {
     @Published var showBatchRenameSheet: Bool = false
 
     // Sheets Collector
+    enum SheetsInputMode: String, CaseIterable {
+        case auto       // all columns from clipboard
+        case mixed      // one column clipboard, others manual
+        case manual     // all columns typed manually
+    }
+
     @Published var sheetsCollectorEnabled: Bool = false
     @Published var sheetsColumnCount: Int = 2
     @Published var sheetsRows: [[String]] = []
@@ -49,6 +55,9 @@ final class StashViewModel: ObservableObject {
     @Published var sheetsFillByColumn: Bool = false
     @Published var sheetsColumnData: [[String]] = []
     @Published var sheetsActiveColumnIndex: Int = 0
+    @Published var sheetsInputMode: SheetsInputMode = .auto
+    @Published var sheetsManualInputs: [String] = ["", ""]
+    @Published var sheetsPasteColumn: Int = 0
 
     enum AppTab {
         case files
@@ -676,6 +685,8 @@ final class StashViewModel: ObservableObject {
     func setSheetsColumnCount(_ count: Int) {
         let clamped = max(2, min(4, count))
         sheetsColumnCount = clamped
+        sheetsManualInputs = Array(repeating: "", count: clamped)
+        if sheetsPasteColumn >= clamped { sheetsPasteColumn = 0 }
 
         if sheetsFillByColumn {
             // Trim or expand column data, reset active index if needed
@@ -702,6 +713,14 @@ final class StashViewModel: ObservableObject {
     }
 
     private func addToSheetsCollector(_ text: String) {
+        if sheetsInputMode == .manual { return }
+
+        if sheetsInputMode == .mixed {
+            sheetsManualInputs[sheetsPasteColumn] = text
+            return
+        }
+
+        // .auto mode
         if sheetsFillByColumn {
             if sheetsColumnData.isEmpty { initColumnData() }
             sheetsColumnData[sheetsActiveColumnIndex].append(text)
@@ -712,6 +731,29 @@ final class StashViewModel: ObservableObject {
                 sheetsCurrentRow.removeAll()
             }
         }
+    }
+
+    func commitMixedRow() {
+        let row = sheetsManualInputs.prefix(sheetsColumnCount).map { $0 }
+        guard row.contains(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else { return }
+        sheetsRows.append(Array(row))
+        resetManualInputs()
+    }
+
+    func commitManualRow() {
+        let row = sheetsManualInputs.prefix(sheetsColumnCount).map { $0 }
+        guard row.contains(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else { return }
+        sheetsRows.append(Array(row))
+        resetManualInputs()
+    }
+
+    func resetManualInputs() {
+        sheetsManualInputs = Array(repeating: "", count: sheetsColumnCount)
+    }
+
+    func setSheetsInputMode(_ mode: SheetsInputMode) {
+        sheetsInputMode = mode
+        resetManualInputs()
     }
 
     func advanceSheetsColumn() {

@@ -31,7 +31,10 @@ struct SheetsCollectorView: View {
                 .foregroundColor(Design.primaryText)
 
             columnCountPicker
-            fillModePicker
+            if viewModel.sheetsInputMode == .auto {
+                fillModePicker
+            }
+            inputModePicker
 
             Spacer()
 
@@ -124,31 +127,291 @@ struct SheetsCollectorView: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
+    // MARK: - Input Mode Picker
+
+    private var inputModePicker: some View {
+        HStack(spacing: 2) {
+            inputModeButton(
+                mode: .auto,
+                icon: "clipboard",
+                label: "Auto"
+            )
+            .help("Alle kolonner fylles automatisk fra utklippstavlen")
+
+            inputModeButton(
+                mode: .mixed,
+                icon: "keyboard.badge.ellipsis",
+                label: "Miks"
+            )
+            .help("E\u{00E9}n kolonne fra utklipp, resten skriver du manuelt")
+
+            inputModeButton(
+                mode: .manual,
+                icon: "keyboard",
+                label: "Manuell"
+            )
+            .help("Skriv i alle kolonner manuelt")
+
+            infoButton
+        }
+        .padding(2)
+        .background(Design.buttonTint.opacity(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func inputModeButton(mode: StashViewModel.SheetsInputMode, icon: String, label: String) -> some View {
+        Button(action: {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                viewModel.setSheetsInputMode(mode)
+            }
+        }) {
+            HStack(spacing: 2) {
+                Image(systemName: icon)
+                    .font(.system(size: 8))
+                Text(label)
+                    .font(.system(size: 9, weight: viewModel.sheetsInputMode == mode ? .bold : .medium, design: .rounded))
+            }
+            .padding(.horizontal, 6)
+            .frame(height: 20)
+            .background(viewModel.sheetsInputMode == mode ? Design.accent.opacity(0.15) : Design.buttonTint)
+            .foregroundColor(viewModel.sheetsInputMode == mode ? Design.accent : Design.subtleText)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+    }
+
+    @State private var showInfoPopover = false
+
+    private var infoButton: some View {
+        Button(action: { showInfoPopover.toggle() }) {
+            Image(systemName: "info.circle")
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(Design.subtleText.opacity(0.5))
+                .frame(width: 20, height: 20)
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $showInfoPopover, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 8) {
+                infoRow(icon: "clipboard", title: "Auto",
+                        desc: "Kopier tekst \u{2014} alle kolonner fylles automatisk fra utklippstavlen.")
+                infoRow(icon: "keyboard.badge.ellipsis", title: "Miks",
+                        desc: "E\u{00E9}n kolonne fylles fra utklipp, resten skriver du selv. Trykk \u{00AB}Legg til\u{00BB} for \u{00E5} lagre raden.")
+                infoRow(icon: "keyboard", title: "Manuell",
+                        desc: "Skriv i alle kolonner manuelt. Trykk \u{00AB}Legg til\u{00BB} eller Enter for \u{00E5} lagre.")
+            }
+            .padding(12)
+            .frame(width: 260)
+        }
+    }
+
+    private func infoRow(icon: String, title: String, desc: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 10))
+                .foregroundColor(Design.accent)
+                .frame(width: 16)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundColor(Design.primaryText)
+                Text(desc)
+                    .font(.system(size: 10, design: .rounded))
+                    .foregroundColor(Design.subtleText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
     // MARK: - Body
 
     private var collectorBody: some View {
         VStack(spacing: 6) {
-            if viewModel.sheetsFillByColumn {
-                columnModeHeaders
-                if viewModel.sheetsTotalEntries == 0 {
-                    columnModeEmptyHint
+            switch viewModel.sheetsInputMode {
+            case .auto:
+                if viewModel.sheetsFillByColumn {
+                    columnModeHeaders
+                    if viewModel.sheetsTotalEntries == 0 {
+                        columnModeEmptyHint
+                    } else {
+                        columnModeRows
+                        actionButtons
+                    }
                 } else {
-                    columnModeRows
-                    actionButtons
+                    rowModeHeaders
+                    if viewModel.sheetsRows.isEmpty && viewModel.sheetsCurrentRow.isEmpty {
+                        rowModeEmptyHint
+                    } else {
+                        rowModeCompletedRows
+                        rowModeCurrentRow
+                        actionButtons
+                    }
                 }
-            } else {
-                rowModeHeaders
-                if viewModel.sheetsRows.isEmpty && viewModel.sheetsCurrentRow.isEmpty {
-                    rowModeEmptyHint
-                } else {
-                    rowModeCompletedRows
-                    rowModeCurrentRow
-                    actionButtons
-                }
+            case .mixed:
+                mixedModeView
+            case .manual:
+                manualModeView
             }
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 10)
+    }
+
+    // MARK: - Mixed Mode
+
+    private var mixedModeView: some View {
+        VStack(spacing: 6) {
+            rowModeHeaders
+
+            if !viewModel.sheetsRows.isEmpty {
+                ForEach(Array(viewModel.sheetsRows.enumerated()), id: \.offset) { index, row in
+                    HStack(spacing: 4) {
+                        ForEach(0..<viewModel.sheetsColumnCount, id: \.self) { col in
+                            let value = col < row.count ? row[col] : ""
+                            cellView(value, filled: true)
+                        }
+                        deleteRowButton { viewModel.removeSheetsRow(at: index) }
+                    }
+                }
+            }
+
+            mixedInputRow
+            addRowButton { viewModel.commitMixedRow() }
+
+            if !viewModel.sheetsRows.isEmpty {
+                actionButtons
+            }
+        }
+    }
+
+    private var mixedInputRow: some View {
+        HStack(spacing: 4) {
+            ForEach(0..<viewModel.sheetsColumnCount, id: \.self) { col in
+                if col == viewModel.sheetsPasteColumn {
+                    pasteIndicatorField(col: col)
+                } else {
+                    editableField(col: col)
+                }
+            }
+            pasteColumnToggle
+        }
+    }
+
+    private func pasteIndicatorField(col: Int) -> some View {
+        ZStack(alignment: .leading) {
+            if viewModel.sheetsManualInputs[col].isEmpty {
+                Text("Limer inn her\u{2026}")
+                    .font(.system(size: 10, design: .rounded))
+                    .foregroundColor(Design.accent.opacity(0.4))
+                    .padding(.horizontal, 6)
+            }
+            TextField("", text: $viewModel.sheetsManualInputs[col])
+                .font(.system(size: 11, design: .monospaced))
+                .textFieldStyle(.plain)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 5)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Design.accent.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(Design.accent.opacity(0.3), lineWidth: 1)
+        )
+    }
+
+    private func editableField(col: Int) -> some View {
+        ZStack(alignment: .leading) {
+            if viewModel.sheetsManualInputs[col].isEmpty {
+                Text("Skriv\u{2026}")
+                    .font(.system(size: 10, design: .rounded))
+                    .foregroundColor(Design.subtleText.opacity(0.3))
+                    .padding(.horizontal, 6)
+            }
+            TextField("", text: $viewModel.sheetsManualInputs[col], onCommit: {
+                if viewModel.sheetsInputMode == .mixed {
+                    viewModel.commitMixedRow()
+                } else {
+                    viewModel.commitManualRow()
+                }
+            })
+                .font(.system(size: 11, design: .monospaced))
+                .textFieldStyle(.plain)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 5)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Design.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(Design.borderColor, lineWidth: 0.5)
+        )
+    }
+
+    private var pasteColumnToggle: some View {
+        Button(action: {
+            withAnimation(.easeInOut(duration: 0.1)) {
+                viewModel.sheetsPasteColumn = (viewModel.sheetsPasteColumn + 1) % viewModel.sheetsColumnCount
+            }
+        }) {
+            Image(systemName: "arrow.left.arrow.right")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundColor(Design.accent.opacity(0.6))
+        }
+        .buttonStyle(.plain)
+        .frame(width: 16)
+        .help("Bytt hvilken kolonne som mottar utklipp (\(columnLabels[viewModel.sheetsPasteColumn]))")
+    }
+
+    private func addRowButton(action: @escaping () -> Void) -> some View {
+        Button(action: {
+            withAnimation(.easeInOut(duration: 0.15)) { action() }
+        }) {
+            HStack(spacing: 4) {
+                Image(systemName: "plus")
+                    .font(.system(size: 9, weight: .bold))
+                Text("Legg til")
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+            }
+        }
+        .buttonStyle(Design.PillButtonStyle(isAccent: true))
+        .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+
+    // MARK: - Manual Mode
+
+    private var manualModeView: some View {
+        VStack(spacing: 6) {
+            rowModeHeaders
+
+            if !viewModel.sheetsRows.isEmpty {
+                ForEach(Array(viewModel.sheetsRows.enumerated()), id: \.offset) { index, row in
+                    HStack(spacing: 4) {
+                        ForEach(0..<viewModel.sheetsColumnCount, id: \.self) { col in
+                            let value = col < row.count ? row[col] : ""
+                            cellView(value, filled: true)
+                        }
+                        deleteRowButton { viewModel.removeSheetsRow(at: index) }
+                    }
+                }
+            }
+
+            manualInputRow
+            addRowButton { viewModel.commitManualRow() }
+
+            if !viewModel.sheetsRows.isEmpty {
+                actionButtons
+            }
+        }
+    }
+
+    private var manualInputRow: some View {
+        HStack(spacing: 4) {
+            ForEach(0..<viewModel.sheetsColumnCount, id: \.self) { col in
+                editableField(col: col)
+            }
+            Spacer().frame(width: 16)
+        }
     }
 
     // MARK: - Row Mode (fill row by row →)
