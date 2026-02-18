@@ -34,7 +34,6 @@ struct SheetsCollectorView: View {
             if viewModel.sheetsInputMode == .auto {
                 fillModePicker
             }
-            inputModeMenu
 
             Spacer()
 
@@ -43,6 +42,9 @@ struct SheetsCollectorView: View {
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundColor(Design.subtleText)
             }
+
+            inputModeMenu
+            inputModeInfoButton
 
             Button(action: {
                 withAnimation(.easeInOut(duration: 0.15)) {
@@ -188,7 +190,47 @@ struct SheetsCollectorView: View {
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
-        .help("Velg input-modus: Auto (utklipp), Miks (utklipp + manuell), Manuell")
+    }
+
+    @State private var showInfoPopover = false
+
+    private var inputModeInfoButton: some View {
+        Image(systemName: "questionmark.circle")
+            .font(.system(size: 10, weight: .medium))
+            .foregroundColor(Design.subtleText.opacity(0.4))
+            .onHover { hovering in
+                showInfoPopover = hovering
+            }
+            .popover(isPresented: $showInfoPopover, arrowEdge: .bottom) {
+                VStack(alignment: .leading, spacing: 8) {
+                    infoRow(icon: "clipboard", title: "Auto",
+                            desc: "Alle kolonner fylles automatisk fra utklippstavlen.")
+                    infoRow(icon: "keyboard.badge.ellipsis", title: "Miks",
+                            desc: "E\u{00E9}n kolonne fra utklipp, resten skriver du selv.")
+                    infoRow(icon: "keyboard", title: "Manuell",
+                            desc: "Skriv i alle kolonner selv. Enter for \u{00E5} lagre rad.")
+                }
+                .padding(12)
+                .frame(width: 250)
+            }
+    }
+
+    private func infoRow(icon: String, title: String, desc: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 10))
+                .foregroundColor(Design.accent)
+                .frame(width: 16)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundColor(Design.primaryText)
+                Text(desc)
+                    .font(.system(size: 10, design: .rounded))
+                    .foregroundColor(Design.subtleText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     // MARK: - Body
