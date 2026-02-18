@@ -11,9 +11,8 @@ struct DragAllButton: View {
         if count > 0 {
             MultiFileDragButton(
                 urls: urls,
-                label: viewModel.loc.dragAll(count),
-                icon: "arrow.up.doc",
-                helpText: viewModel.loc.dragToTransfer
+                label: "Dra alle (\(count))",
+                icon: "arrow.up.doc"
             )
         }
     }

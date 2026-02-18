@@ -21,37 +21,37 @@ struct BatchRenameSheet: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            Text(viewModel.loc.renameFiles(viewModel.selectedItemIds.count))
+            Text("Gi nytt navn til \(viewModel.selectedItemIds.count) filer")
                 .font(Design.headingFont)
                 .foregroundColor(Design.primaryText)
 
             VStack(spacing: 10) {
                 HStack {
-                    Text(viewModel.loc.prefixLabel)
+                    Text("Prefiks:")
                         .font(Design.bodyFont)
                         .foregroundColor(Design.subtleText)
                         .frame(width: 80, alignment: .trailing)
-                    TextField(viewModel.loc.prefixPlaceholder, text: $prefix)
+                    TextField("prefiks", text: $prefix)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 140)
                 }
 
                 HStack {
-                    Text(viewModel.loc.separatorLabel)
+                    Text("Skilletegn:")
                         .font(Design.bodyFont)
                         .foregroundColor(Design.subtleText)
                         .frame(width: 80, alignment: .trailing)
                     Picker("", selection: $separator) {
-                        Text(viewModel.loc.underscore).tag("_")
-                        Text(viewModel.loc.hyphen).tag("-")
-                        Text(viewModel.loc.period).tag(".")
-                        Text(viewModel.loc.space).tag(" ")
+                        Text("_ (understrek)").tag("_")
+                        Text("- (bindestrek)").tag("-")
+                        Text(". (punktum)").tag(".")
+                        Text("  (mellomrom)").tag(" ")
                     }
                     .frame(width: 150)
                 }
 
                 HStack {
-                    Text(viewModel.loc.startNumber)
+                    Text("Start nr:")
                         .font(Design.bodyFont)
                         .foregroundColor(Design.subtleText)
                         .frame(width: 80, alignment: .trailing)
@@ -59,7 +59,7 @@ struct BatchRenameSheet: View {
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 60)
 
-                    Text(viewModel.loc.digits)
+                    Text("Siffer:")
                         .font(Design.bodyFont)
                         .foregroundColor(Design.subtleText)
                     Picker("", selection: $padDigits) {
@@ -74,7 +74,7 @@ struct BatchRenameSheet: View {
 
             // Preview
             VStack(alignment: .leading, spacing: 4) {
-                Text(viewModel.loc.preview)
+                Text("Forh\u{00E5}ndsvisning:")
                     .font(Design.captionFont)
                     .foregroundColor(Design.subtleText)
 
@@ -112,12 +112,12 @@ struct BatchRenameSheet: View {
             )
 
             HStack(spacing: 12) {
-                Button(viewModel.loc.cancel) {
+                Button("Avbryt") {
                     isPresented = false
                 }
                 .buttonStyle(Design.PillButtonStyle())
 
-                Button(viewModel.loc.rename) {
+                Button("Gi nytt navn") {
                     let names = previewNames
                     viewModel.batchRename(names.map { ($0.id, $0.newName) })
                     isPresented = false

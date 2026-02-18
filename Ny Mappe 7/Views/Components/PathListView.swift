@@ -10,7 +10,7 @@ struct PathListView: View {
                 VStack(spacing: 4) {
                     HStack {
                         if !viewModel.selectedPathIds.isEmpty {
-                            Text(viewModel.loc.selected(viewModel.selectedPathIds.count))
+                            Text("\(viewModel.selectedPathIds.count) valgt")
                                 .font(Design.captionFont)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
@@ -31,7 +31,7 @@ struct PathListView: View {
                                 HStack(spacing: 3) {
                                     Image(systemName: "xmark.circle")
                                         .font(.system(size: 10))
-                                    Text(viewModel.loc.deselect)
+                                    Text("Fjern valg")
                                         .font(Design.captionFont)
                                 }
                                 .foregroundColor(Design.subtleText)
@@ -51,7 +51,7 @@ struct PathListView: View {
                                 HStack(spacing: 3) {
                                     Image(systemName: "checkmark.circle")
                                         .font(.system(size: 10))
-                                    Text(viewModel.loc.selectAll)
+                                    Text("Velg alle")
                                         .font(Design.captionFont)
                                 }
                                 .foregroundColor(Design.subtleText)
@@ -70,7 +70,7 @@ struct PathListView: View {
                             HStack(spacing: 3) {
                                 Image(systemName: "trash")
                                     .font(.system(size: 10))
-                                Text(viewModel.loc.clear)
+                                Text("T\u{00F8}m")
                                     .font(Design.captionFont)
                             }
                             .foregroundColor(Design.subtleText)
@@ -81,7 +81,7 @@ struct PathListView: View {
                             .overlay(Capsule().stroke(Design.buttonBorder, lineWidth: 0.5))
                         }
                         .buttonStyle(.plain)
-                        .help(viewModel.loc.clearAllExceptPinned)
+                        .help("T\u{00F8}m alle (unntatt festede)")
                     }
 
                     // Action row when items are selected
@@ -95,12 +95,12 @@ struct PathListView: View {
                                 HStack(spacing: 3) {
                                     Image(systemName: "doc.on.doc")
                                         .font(.system(size: 10))
-                                    Text(viewModel.loc.copyPaths)
+                                    Text("Kopier paths")
                                         .font(Design.captionFont)
                                 }
                             }
                             .buttonStyle(Design.PillButtonStyle(isAccent: true, isSolid: true))
-                            .help(viewModel.loc.copySelectedPaths)
+                            .help("Kopier valgte paths (en per linje)")
                         }
                     }
                 }
@@ -158,11 +158,11 @@ struct PathListView: View {
             .frame(height: 90)
 
             VStack(spacing: 6) {
-                Text(viewModel.loc.dragFolderOrFileHere)
+                Text("Dra mappe eller fil hit")
                     .font(Design.headingFont)
                     .foregroundColor(Design.primaryText)
 
-                Text(viewModel.loc.dropFromFinderToCopyPath)
+                Text("Slipp en mappe/fil fra Finder\nfor \u{00E5} kopiere full path")
                     .font(Design.bodyFont)
                     .foregroundColor(Design.subtleText)
                     .multilineTextAlignment(.center)
@@ -196,7 +196,7 @@ struct PathCard: View {
                 Spacer()
 
                 if showCopied {
-                    Text(viewModel.loc.copied)
+                    Text("Kopiert!")
                         .font(.system(size: 10, weight: .bold, design: .rounded))
                         .foregroundColor(Design.accent)
                         .transition(.opacity.combined(with: .scale))
@@ -236,7 +236,7 @@ struct PathCard: View {
                             Image(systemName: "doc.on.doc")
                         }
                         .buttonStyle(Design.InlineActionStyle())
-                        .help(viewModel.loc.copyPath)
+                        .help("Kopier path")
 
                         Button(action: {
                             viewModel.revealPathInFinder(entry)
@@ -244,7 +244,7 @@ struct PathCard: View {
                             Image(systemName: "folder")
                         }
                         .buttonStyle(Design.InlineActionStyle())
-                        .help(viewModel.loc.showInFinder)
+                        .help("Vis i Finder")
 
                         Button(action: {
                             viewModel.togglePinPathEntry(entry)
@@ -252,7 +252,7 @@ struct PathCard: View {
                             Image(systemName: entry.isPinned ? "pin.slash" : "pin")
                         }
                         .buttonStyle(Design.InlineActionStyle())
-                        .help(entry.isPinned ? viewModel.loc.unpin : viewModel.loc.pin)
+                        .help(entry.isPinned ? "Fjern feste" : "Fest")
 
                         Button(action: {
                             withAnimation { viewModel.deletePathEntry(entry) }
@@ -261,7 +261,7 @@ struct PathCard: View {
                                 .font(.system(size: 10, weight: .medium))
                         }
                         .buttonStyle(Design.InlineActionStyle())
-                        .help(viewModel.loc.delete)
+                        .help("Slett")
                     }
                 }
             }

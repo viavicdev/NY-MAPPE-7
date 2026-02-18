@@ -39,9 +39,8 @@ class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
             button.image = NSImage(systemSymbolName: "tray.and.arrow.down.fill", accessibilityDescription: "Ny Mappe (7)")
             button.image?.size = NSSize(width: 18, height: 18)
             button.image?.isTemplate = true
-            button.action = #selector(statusItemClicked)
+            button.action = #selector(togglePanel)
             button.target = self
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
 
         // Create the floating panel (340 = enkel, 520 = full)
@@ -77,19 +76,6 @@ class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
         // Show the panel on first launch
         positionPanelBelowStatusItem()
         panel.makeKeyAndOrderFront(nil)
-
-        // Listen for "show about" notifications from SwiftUI settings menu
-        NotificationCenter.default.addObserver(self, selector: #selector(showAbout), name: .showAboutPanel, object: nil)
-    }
-
-    @objc func statusItemClicked() {
-        guard let event = NSApp.currentEvent else { return }
-
-        if event.type == .rightMouseUp {
-            showContextMenu()
-        } else {
-            togglePanel()
-        }
     }
 
     @objc func togglePanel() {
@@ -100,76 +86,6 @@ class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
             panel.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
         }
-    }
-
-    private func showContextMenu() {
-        let loc = Loc(l: AppLanguage.current)
-        let menu = NSMenu()
-
-        let openItem = NSMenuItem(title: loc.openPanel, action: #selector(openPanel), keyEquivalent: "")
-        openItem.target = self
-        menu.addItem(openItem)
-
-        menu.addItem(.separator())
-
-        let aboutItem = NSMenuItem(title: loc.about, action: #selector(showAbout), keyEquivalent: "")
-        aboutItem.target = self
-        menu.addItem(aboutItem)
-
-        menu.addItem(.separator())
-
-        let quitItem = NSMenuItem(title: loc.quit, action: #selector(quitApp), keyEquivalent: "q")
-        quitItem.target = self
-        menu.addItem(quitItem)
-
-        // Temporarily assign menu, click, then remove (so left-click still works)
-        statusItem.menu = menu
-        statusItem.button?.performClick(nil)
-        statusItem.menu = nil
-    }
-
-    @objc func openPanel() {
-        positionPanelBelowStatusItem()
-        panel.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-    }
-
-    @objc func showAbout() {
-        let loc = Loc(l: AppLanguage.current)
-
-        let alert = NSAlert()
-        alert.messageText = "Ny Mappe (7)"
-        alert.informativeText = """
-        \(loc.version) 3.1
-
-        \(loc.aboutDescription)
-
-        \(loc.madeBy) viavicdev
-        github.com/viavicdev/ny-mappe-7
-        """
-        alert.alertStyle = .informational
-
-        // Use app icon if available
-        if let icon = NSImage(named: "AppIcon") {
-            alert.icon = icon
-        } else {
-            let icon = NSImage(systemSymbolName: "tray.and.arrow.down.fill", accessibilityDescription: nil)
-            alert.icon = icon
-        }
-
-        alert.addButton(withTitle: "OK")
-        alert.addButton(withTitle: loc.viewOnGithub)
-
-        let response = alert.runModal()
-        if response == .alertSecondButtonReturn {
-            if let url = URL(string: "https://github.com/viavicdev/ny-mappe-7") {
-                NSWorkspace.shared.open(url)
-            }
-        }
-    }
-
-    @objc func quitApp() {
-        NSApp.terminate(nil)
     }
 
     private func positionPanelBelowStatusItem() {
@@ -194,12 +110,6 @@ class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return false
     }
-}
-
-// MARK: - Notification for About panel
-
-extension Notification.Name {
-    static let showAboutPanel = Notification.Name("showAboutPanel")
 }
 
 // MARK: - Floating Panel

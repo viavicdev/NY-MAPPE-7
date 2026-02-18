@@ -56,6 +56,24 @@ struct FileCardView: View {
                     }
                     .padding(6)
                 }
+
+                // Screenshot timestamp badge
+                if item.isScreenshot {
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Text(screenshotTimestamp)
+                                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                                .foregroundColor(.white.opacity(0.95))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(Color.black.opacity(0.55))
+                                .clipShape(RoundedRectangle(cornerRadius: 5))
+                            Spacer()
+                        }
+                    }
+                    .padding(6)
+                }
             }
             .frame(maxWidth: .infinity)
             .frame(height: isCompact ? 94 : 100)
@@ -121,6 +139,13 @@ struct FileCardView: View {
             isHovered = hovering
         }
         .contentShape(Rectangle())
+    }
+
+    private var screenshotTimestamp: String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "nb_NO")
+        f.dateFormat = "d. MMM HH:mm"
+        return f.string(from: item.dateAdded)
     }
 
     @ViewBuilder

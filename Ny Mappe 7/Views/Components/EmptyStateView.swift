@@ -2,10 +2,7 @@ import SwiftUI
 
 struct EmptyStateView: View {
     var isScreenshotTab: Bool = false
-    var language: AppLanguage = .no
     @State private var floatOffset: CGFloat = 0
-
-    private var loc: Loc { Loc(l: language) }
 
     var body: some View {
         VStack(spacing: 10) {
@@ -28,13 +25,13 @@ struct EmptyStateView: View {
             }
 
             VStack(spacing: 4) {
-                Text(isScreenshotTab ? loc.noScreenshotsYet : loc.dragFilesHere)
+                Text(isScreenshotTab ? "Ingen screenshots enn\u{00E5}" : "Dra filer hit")
                     .font(Design.headingFont)
                     .foregroundColor(Design.primaryText)
 
                 Text(isScreenshotTab ?
-                     loc.enableCameraAndScreenshot :
-                     loc.orUseButtonsAbove)
+                     "Sl\u{00E5} p\u{00E5} kamera-ikonet og ta et screenshot" :
+                     "eller bruk knappene over")
                     .font(Design.bodyFont)
                     .foregroundColor(Design.subtleText)
             }

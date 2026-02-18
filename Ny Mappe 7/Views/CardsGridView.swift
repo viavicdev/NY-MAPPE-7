@@ -92,23 +92,23 @@ struct CardsGridView: View {
             return true
         }
         .contextMenu {
-            Button(viewModel.loc.showInFinder) {
+            Button("Vis i Finder") {
                 viewModel.revealInFinder(item)
             }
-            Button(viewModel.loc.open) {
+            Button("\u{00C5}pne") {
                 quickLook(item)
             }
             Divider()
-            Button(viewModel.loc.share) {
+            Button("Del...") {
                 shareItem(item)
             }
             if viewModel.selectedItemIds.count > 1 && viewModel.selectedItemIds.contains(item.id) {
-                Button(viewModel.loc.renameSelectedEllipsis) {
+                Button("Gi nytt navn til valgte...") {
                     viewModel.showBatchRenameSheet = true
                 }
             }
             Divider()
-            Button(viewModel.loc.remove, role: .destructive) {
+            Button("Fjern", role: .destructive) {
                 viewModel.selectedItemIds = [item.id]
                 withAnimation {
                     viewModel.removeSelected()

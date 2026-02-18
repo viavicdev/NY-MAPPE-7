@@ -1,105 +1,188 @@
 # Ny Mappe (7)
 
-En macOS menybar-app for **fil-staging**, **utklippshistorikk**, **skjermbilder** og **filsti-kopiering**. Panelet svever over alle vinduer og skjuler seg fra Dock.
+En macOS menybar-app for **fil-staging**, **utklippshistorikk**, **skjermbilder**, **filsti-kopiering** og **verktøy**. Panelet svever over alle vinduer og skjuler seg fra Dock.
 
 **Krav:** macOS 13.0+, Xcode Command Line Tools (`xcode-select --install`). Xcode IDE er **IKKE** nødvendig.
 
 **Arkitekturer:** Universal binary — kjører nativt på både **Intel (x86_64)** og **Apple Silicon (arm64)**.
 
-**Språk:** Norsk (standard) og engelsk. Bytt i Innstillinger → Språk.
+---
+
+## Nytt i v3.2
+
+### Ny fanestruktur
+
+Tre hovedfaner erstatter de gamle fire:
+
+| Fane | Innhold |
+|------|---------|
+| **Filer** | Dra inn filer, staging-cache, dra ut til andre apper |
+| **Utklipp** | Automatisk utklippshistorikk med søk og 2-kolonne grid |
+| **Verktøy** | Sub-faner: **Skjermbilder**, **Paths**, **Sheets-samler** |
+
+### Sheets-samler (nytt verktøy)
+
+Samler kopierte tekstbiter i kolonner for direkte liming i Google Sheets eller eksport som CSV. Støtter 2–4 kolonner med valgfri fyllretning (nedover eller bortover).
+
+### Innstillingspanel
+
+Innstillingene er nå en **modal dialog** i stedet for dropdown-meny:
+
+- **Utseende** — Mørk / Lys / Følg system, enkel/full modus
+- **Utklipp** — Konfigurerbar maks-grense (50, 100, 200, 500, 1000, eller ubegrenset)
+- **Skjermbilder** — Auto-lagring av/på
+- **Auto-opprydding** — Per kategori med valgfri alder
+- **Snarveier** — Oversikt over alle tastatursnarveier
+
+### Utklipp-forbedringer
+
+- **2-kolonne grid-layout** i kompakt modus
+- **Søkebar** med `⌘F` snarvei
+- **Tegnteller** på hvert kort (nyttig for tekst-arbeid)
+- **Dato og klokkeslett** på hvert kort
+- **«Les mer»-knapp** for lange utklipp
+- **Dobbeltklikk** kopierer direkte med visuell «Kopiert!»-feedback
+- **Drag & drop** — dra tekst fra utklipp-kort til andre apper
+- **Maks-grense** — konfigurerbar i innstillinger, eldste slettes automatisk
+
+### Nye tastatursnarveier
+
+| Snarvei | Handling |
+|---------|----------|
+| `⌘1` / `⌘2` / `⌘3` | Bytt fane (Filer / Utklipp / Verktøy) |
+| `⌘F` | Fokuser søkefeltet i Utklipp |
+| `⌘C` | Kopier valgte utklipp |
+| `⌘W` | Lukk panelet |
+
+### Design
+
+- Glass-aktig fane-bar med adaptiv opacity
+- Dynamiske badges som skalerer for flersifrede tall
+- Sub-faner med understreking-indikator
+- Kompakte utklipp-kort med hover-actions
 
 ---
 
 ## Funksjoner
 
-### Fire faner
+### Filer-fanen
+- Dra filer inn manuelt — kopier lagres i en staging-cache (originaler røres aldri)
+- Dra ut til andre apper
+- Batch-omdøpning
+- Sett/grupper for organisering
+- Filter (Alle, Bilder, Video, osv.) og sortering i full modus
 
-| Fane | Ikon | Beskrivelse |
-|------|------|-------------|
-| **Filer** | `doc.on.doc` | Dra filer inn manuelt. Kopier lagres i en staging-cache (originaler røres aldri). Dra ut til andre apper. |
-| **Skjerm** | `camera.viewfinder` | Automatisk skjermbildefangst. Slå av/på med kamera-ikonet i tittellinja. |
-| **Utklipp** | `doc.on.clipboard` | Automatisk utklippshistorikk. Fanger all tekst du kopierer (⌘C). Opptil 200 oppføringer. Søkbar. |
-| **Path** | `folder` | Slipp filer/mapper fra Finder for å fange full filsti. Kopieres automatisk til utklippstavlen. |
-
-### Utklipp-fanen i detalj
+### Utklipp-fanen
 - Tekst fanges automatisk mens appen kjører (poller `NSPasteboard.general` hvert 0.5s)
-- **Søk**: Filtrer oppføringer i sanntid med søkefeltet
-- **Flervalg**: Trykk på kort for å velge/fjerne. Valgte elementer får blå ramme.
-- **Kopier valgte**: Kombinerer valgte klipp med doble linjeskift (`\n\n`)
-- **Eksporter .txt / .csv**: Lagre valgte klipp til fil
-- **Fest**: Festede klipp slettes ikke ved tømming
-- Duplikater av siste oppføring ignoreres. Filkopier (⌘C på filer i Finder) fanges IKKE.
+- Søkbar med `⌘F`
+- 2-kolonne grid i kompakt modus
+- Flervalg med blå ramme
+- Fest viktige utklipp (slettes ikke ved tømming)
+- Eksporter som .txt eller .csv
+- Dobbeltklikk for å kopiere, drag for å dra til andre apper
+- Tegnteller og tidsstempel per kort
+- Konfigurerbar maks-grense med auto-sletting
+- Duplikater av siste oppføring ignoreres
+
+### Verktøy → Skjermbilder
+- Automatisk skjermbildefangst fra skrivebordet
+- Slå av/på i innstillinger
+
+### Verktøy → Paths
+- Slipp filer/mapper for å fange full filsti
+- Kopieres automatisk til utklippstavlen
+- Fest, vis i Finder
+
+### Verktøy → Sheets-samler
+- Samler tekst i 2–4 kolonner
+- Fyllretning: nedover eller bortover
+- Kopier for Google Sheets (tab-separert)
+- Eksporter som .csv
 
 ### Enkel / Full modus
-Veksle i Innstillinger (tannhjul-ikonet):
-- **Enkel** (standard): Kortere panel (340px). Ingen filter/sorteringsknapper.
-- **Full**: Høyere panel (520px). Viser filtervalg (Alle, Bilder, Video, osv.) og sorteringsmeny (Navn, Størrelse, Dato).
-
-### Tema
-Tre valg i Innstillinger: Mørk, Lys, Følg system. Alle farger er adaptive.
+- **Enkel** (standard): Kompakt panel
+- **Full**: Høyere panel med filter/sortering
 
 ### Menybar
-- **Venstreklikk** på ikonet for å vise/skjule panelet
+- **Venstreklikk** for å vise/skjule panelet
 - **Høyreklikk** for kontekstmeny: Åpne panel, Om, Avslutt
 - Panelet svever over alle vinduer (`NSPanel` med `level = .floating`)
 - Ingen Dock-ikon (`LSUIElement = true`)
 - Panelet lukkes automatisk etter vellykket fil-utdragning
 
-### Om-dialog
-Tilgjengelig fra Innstillinger eller høyreklikk-menyen. Viser versjonsinformasjon og lenke til dette GitHub-repoet.
+---
+
+## Tastatursnarveier
+
+| Snarvei | Handling |
+|---------|----------|
+| `⌘1` / `⌘2` / `⌘3` | Bytt fane (Filer / Utklipp / Verktøy) |
+| `⌘F` | Fokuser søkefeltet i Utklipp |
+| `⌘C` | Kopier valgte utklipp |
+| `⌘A` | Velg alle (kontekst-bevisst per fane) |
+| `⌘V` | Lim inn filer fra utklippstavlen (Filer/Skjermbilder) |
+| `⌘W` | Lukk panelet |
+| `Delete` | Fjern valgte elementer |
+| `Space` | Quick Look på valgt fil |
+| `Escape` | Fjern valg, eller lukk panel |
+| Dobbeltklikk | Kopier utklipp direkte |
 
 ---
 
 ## Prosjektstruktur
 
 ```
-ny-mappe-7/
-├── README.md                           # Denne filen
-├── LICENSE                             # MIT-lisens
-├── build.sh                            # Universal build-script (Intel + Apple Silicon)
+NY-MAPPE-7/
+├── README.md
+├── LICENSE
+├── build.sh                             # Universal build-script
 ├── .gitignore
 │
-└── Ny Mappe 7/                         # KILDEKODE
-    ├── NyMappe7App.swift               # App-inngang, MenuBarAppDelegate, FloatingPanel, høyreklikkmeny
+└── Ny Mappe 7/                          # KILDEKODE
+    ├── AppIcon.icns
+    ├── NyMappe7App.swift                # App-inngang, menybar, flytende panel
     │
     ├── Models/
-    │   ├── AppState.swift              # Codable struct for JSON-lagring av all tilstand
-    │   ├── StashItem.swift             # Filmodell (id, URL, type, størrelse, isScreenshot)
-    │   ├── StashSet.swift              # Filsett/gruppemodell
-    │   ├── ClipboardEntry.swift        # Utklippsmodell (id, tekst, tidspunkt, isPinned)
-    │   ├── PathEntry.swift             # Sti-modell (id, sti, navn, isDirectory, isPinned)
-    │   └── Localization.swift          # AppLanguage enum + Loc struct (norsk/engelsk)
+    │   ├── AppState.swift               # Codable struct for JSON-lagring
+    │   ├── StashItem.swift              # Filmodell
+    │   ├── StashSet.swift               # Filsett/gruppemodell
+    │   ├── ClipboardEntry.swift         # Utklippsmodell
+    │   └── PathEntry.swift              # Sti-modell
     │
     ├── ViewModels/
-    │   └── StashViewModel.swift        # All app-logikk. @MainActor, ObservableObject.
+    │   └── StashViewModel.swift         # All app-logikk
     │
     ├── Services/
-    │   ├── StagingService.swift        # Kopierer filer til cache, zip, validering
-    │   ├── ThumbnailService.swift      # QuickLook-miniatyrbilder
-    │   ├── PersistenceService.swift    # JSON last/lagre til ~/Library/Application Support/GeniDrop/
-    │   ├── ScreenshotWatcher.swift     # Overvåker skjermbildemappen
-    │   └── ClipboardWatcher.swift      # Poller NSPasteboard.general for ny tekst
+    │   ├── ClipboardWatcher.swift       # Poller NSPasteboard for ny tekst
+    │   ├── PersistenceService.swift     # JSON last/lagre
+    │   ├── ScreenshotWatcher.swift      # Overvåker skjermbildemappen
+    │   ├── StagingService.swift         # Kopierer filer til cache, zip
+    │   └── ThumbnailService.swift       # QuickLook-miniatyrbilder
     │
     └── Views/
-        ├── ContentView.swift           # Hovedvisning: tittelbar, faner, slippsone, innstillingsmeny
-        ├── CardsGridView.swift         # Rutenett med filkort
+        ├── ContentView.swift            # Hovedvisning, faner, snarveier
+        ├── CardsGridView.swift          # Rutenett med filkort
         └── Components/
-            ├── DesignTokens.swift      # Alle farger, fonter, stiler. Adaptiv lys/mørk.
-            ├── FileCardView.swift      # Enkelt filkort med miniatyrbilde og hover
-            ├── DraggableCardWrapper.swift   # NSViewRepresentable for NSDraggingSource per kort
-            ├── DragSourceView.swift    # NSViewRepresentable for "Dra alle"-knappen
-            ├── DragAllButton.swift     # SwiftUI-wrapper for dra-alle
-            ├── MultiFileDragButton.swift    # Dra-knapp for valgte filer
-            ├── ClipboardListView.swift # Utklipp-fane: liste, søk, flervalg, kopier, eksporter
-            ├── PathListView.swift      # Path-fane: liste, kopier, fest, vis i Finder
-            ├── HeaderView.swift        # Statistikkrad + filter/sortering (vises i full modus)
-            ├── ToolbarView.swift       # "Legg til filer"-knapp (kun Filer-fanen)
-            ├── ActionBarView.swift     # "Fjern valgte" / "Tøm"-knapper
-            ├── EmptyStateView.swift    # Tom tilstand per fane med animasjon
-            ├── ErrorBanner.swift       # Feilmeldingsbanner
-            ├── TypeBadge.swift         # Filtype-merke (Bilde, Video, osv.)
-            ├── SetSelectorView.swift   # Settvelger og -administrasjon
-            └── BatchRenameSheet.swift  # Batch-omdøpningsdialog
+            ├── DesignTokens.swift       # Farger, fonter, stiler
+            ├── SettingsSheet.swift       # Modal innstillingspanel
+            ├── ToolsTabView.swift       # Verktøy-fane med sub-tabs
+            ├── SheetsCollectorView.swift # Sheets-samler
+            ├── SheetsTabView.swift       # Sheets-fane wrapper
+            ├── ClipboardListView.swift  # Utklipp: grid, søk, drag
+            ├── PathListView.swift       # Path-liste
+            ├── FileCardView.swift       # Filkort med miniatyrbilde
+            ├── DraggableCardWrapper.swift
+            ├── DragSourceView.swift
+            ├── DragAllButton.swift
+            ├── MultiFileDragButton.swift
+            ├── HeaderView.swift         # Statistikk + filter
+            ├── ToolbarView.swift
+            ├── ActionBarView.swift
+            ├── EmptyStateView.swift
+            ├── ErrorBanner.swift
+            ├── TypeBadge.swift
+            ├── SetSelectorView.swift
+            └── BatchRenameSheet.swift
 ```
 
 ---
@@ -107,7 +190,7 @@ ny-mappe-7/
 ## Bygge
 
 ### Forutsetninger
-- macOS 14+ med Xcode Command Line Tools: `xcode-select --install`
+- macOS 13+ med Xcode Command Line Tools: `xcode-select --install`
 - **Xcode IDE er IKKE nødvendig**
 
 ### Bygg (universal binary)
@@ -116,20 +199,11 @@ ny-mappe-7/
 ./build.sh
 ```
 
-Dette bygger for både Intel og Apple Silicon, lager en `.app`-bundle, og gir:
-```
-✅ Build complete!
-   App:           ./Ny Mappe (7) v2.app
-   Architectures: x86_64 arm64
-```
-
 ### Kjør
 
 ```bash
 open "Ny Mappe (7) v2.app"
 ```
-
-Eller dobbeltklikk `.app`-filen i Finder.
 
 ### Installer
 
@@ -145,58 +219,43 @@ All data lagres under `~/Library/Application Support/GeniDrop/`:
 
 | Sti | Innhold |
 |-----|---------|
-| `state.json` | All tilstand: sett, filer, utklippshistorikk, innstillinger, språk (JSON, Codable) |
+| `state.json` | All tilstand: sett, filer, utklipp, innstillinger (JSON, Codable) |
 | `StagingCache/<setId>/` | Kopierte filer per sett |
 | `Thumbnails/` | Genererte miniatyrbilder |
 | `Exports/` | Midlertidige zip-filer |
 
 ### Tilbakestill all data
-Slett mappen: `rm -rf ~/Library/Application\ Support/GeniDrop/`
 
----
-
-## Tastatursnarveier
-
-| Snarvei | Handling |
-|---------|---------|
-| `⌘A` | Velg alle (kontekst-bevisst per fane) |
-| `⌘V` | Lim inn filer fra utklippstavlen (Filer/Skjerm-fanene) |
-| `Delete` | Fjern valgte elementer |
-| `Space` | Quick Look på første valgte fil |
-| `Escape` | Fjern valg, eller lukk panel hvis ingenting er valgt |
+```bash
+rm -rf ~/Library/Application\ Support/GeniDrop/
+```
 
 ---
 
 ## Tekniske detaljer
 
 ### Dra og slipp
-- **Dra inn**: Egendefinert `ExternalDropZone` (`NSViewRepresentable`) som avviser interne drag.
-- **Dra ut**: `DraggableCardWrapper` og `DragSourceView` implementerer `NSDraggingSource`. `mouseDownCanMoveWindow = false` hindrer vinduflytting.
-- **Auto-lukking**: Panelet lukkes automatisk etter vellykket utdragning (`operation == .copy`).
+- **Dra inn**: `ExternalDropZone` (`NSViewRepresentable`) som avviser interne drag
+- **Dra ut**: `DraggableCardWrapper` og `DragSourceView` med `NSDraggingSource`
+- **Utklipp-drag**: `onDrag` med `NSItemProvider` for tekst fra utklipp-kort
+- **Auto-lukking**: Panel lukkes etter vellykket utdragning
 
 ### Menybar / Flytende panel
-- `NSStatusItem` med SF Symbol `tray.and.arrow.down.fill`
-- Venstreklikk veksler panel, høyreklikk viser kontekstmeny (Åpne, Om, Avslutt)
-- `FloatingPanel` (subklasse av `NSPanel`) med `level = .floating`, `hidesOnDeactivate = false`
+- `NSStatusItem` med SF Symbol
+- `FloatingPanel` (`NSPanel`) med `level = .floating`, `hidesOnDeactivate = false`
 - `collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]`
-
-### Lokalisering
-- To språk: norsk (`no`) og engelsk (`en`)
-- Alle UI-strenger i `Localization.swift` via `Loc`-structen
-- Språkvalg lagres i `state.json`
-- Modeller bruker `AppLanguage.current` statisk property
 
 ### Persistens
 - `AppState` er `Codable` — serialiseres til JSON med 0.5s debounce
-- Inkluderer: sett, filer, utklippshistorikk, sti-oppføringer, innstillinger, språk
+- Inkluderer: sett, filer, utklippshistorikk, paths, innstillinger
 
 ---
 
 ## Kjente begrensninger
 
-- **Ingen App Sandbox**: Appen kjører uten sandbox for fri filtilgang og `/usr/bin/ditto` for zip.
-- **Ingen .xcodeproj**: Bygges direkte med `swiftc`. Alle kildefiler må listes i `build.sh`.
-- **Nye filer**: Hvis du legger til en ny `.swift`-fil, MÅ du legge den til i `SOURCES`-arrayen i `build.sh`.
+- **Ingen App Sandbox**: Fri filtilgang og `/usr/bin/ditto` for zip
+- **Ingen .xcodeproj**: Bygges med `swiftc` via `build.sh`
+- **Nye filer**: Legg til i `SOURCES`-arrayen i `build.sh`
 
 ---
 

@@ -27,18 +27,24 @@ struct ClipboardEntry: Identifiable, Codable, Hashable {
     }
 
     var timeAgo: String {
-        let loc = Loc(l: AppLanguage.current)
         let interval = Date().timeIntervalSince(dateCopied)
-        if interval < 60 { return loc.now }
+        if interval < 60 { return "n\u{00E5}" }
         if interval < 3600 {
             let mins = Int(interval / 60)
-            return loc.minutesAgo(mins)
+            return "\(mins) min siden"
         }
         if interval < 86400 {
             let hours = Int(interval / 3600)
-            return loc.hoursAgo(hours)
+            return "\(hours)t siden"
         }
         let days = Int(interval / 86400)
-        return loc.daysAgo(days)
+        return "\(days)d siden"
+    }
+
+    var formattedDate: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "nb_NO")
+        formatter.dateFormat = "d. MMM HH:mm"
+        return formatter.string(from: dateCopied)
     }
 }

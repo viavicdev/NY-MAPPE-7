@@ -11,20 +11,20 @@ struct ToolbarView: View {
                 Image(systemName: "doc.badge.plus")
             }
             .buttonStyle(Design.IconButtonStyle(isAccent: true))
-            .help(viewModel.loc.addFiles)
+            .help("Legg til filer")
 
             if isFullMode {
                 Button(action: { pasteFromClipboard() }) {
                     Image(systemName: "doc.on.clipboard")
                 }
                 .buttonStyle(Design.IconButtonStyle())
-                .help(viewModel.loc.pasteFromClipboard)
+                .help("Lim inn fra utklippstavle")
 
                 Button(action: { viewModel.selectAll() }) {
                     Image(systemName: "checkmark.circle")
                 }
                 .buttonStyle(Design.IconButtonStyle())
-                .help(viewModel.loc.selectAll)
+                .help("Velg alle")
             }
 
             Spacer()
@@ -35,7 +35,7 @@ struct ToolbarView: View {
                     Image(systemName: "pencil.line")
                 }
                 .buttonStyle(Design.IconButtonStyle())
-                .help(viewModel.loc.renameSelected)
+                .help("Gi nytt navn til valgte")
             }
 
             // Share (full mode, has selection)
@@ -44,7 +44,7 @@ struct ToolbarView: View {
                     Image(systemName: "square.and.arrow.up")
                 }
                 .buttonStyle(Design.IconButtonStyle())
-                .help(viewModel.loc.shareSelectedFiles)
+                .help("Del valgte filer")
             }
 
             if isFullMode && !viewModel.selectedItemIds.isEmpty {
@@ -52,20 +52,20 @@ struct ToolbarView: View {
                     Image(systemName: "folder")
                 }
                 .buttonStyle(Design.IconButtonStyle())
-                .help(viewModel.loc.showInFinder)
+                .help("Vis i Finder")
             }
 
             // Export list menu (full mode)
             if isFullMode && !viewModel.currentItems.isEmpty {
                 Menu {
                     Button(action: { viewModel.exportFileListAsText() }) {
-                        Label(viewModel.loc.asTxtFilenames, systemImage: "doc.text")
+                        Label("Som .txt (filnavn)", systemImage: "doc.text")
                     }
                     Button(action: { viewModel.exportFileListAsCSV() }) {
-                        Label(viewModel.loc.asCsvMetadata, systemImage: "tablecells")
+                        Label("Som .csv (metadata)", systemImage: "tablecells")
                     }
                     Button(action: { viewModel.exportFileListAsJSON() }) {
-                        Label(viewModel.loc.asJsonFull, systemImage: "curlybraces")
+                        Label("Som .json (full info)", systemImage: "curlybraces")
                     }
                 } label: {
                     Image(systemName: "list.bullet.rectangle")
@@ -75,17 +75,17 @@ struct ToolbarView: View {
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
-                .help(viewModel.loc.exportFileList)
+                .help("Eksporter filliste")
             }
 
             // Zip menu
             if !viewModel.currentItems.isEmpty {
                 Menu {
                     Button(action: { viewModel.zipItems() }) {
-                        Label(viewModel.loc.zipToStash, systemImage: "archivebox")
+                        Label("Zip til stash", systemImage: "archivebox")
                     }
                     Button(action: { viewModel.exportAsZip() }) {
-                        Label(viewModel.loc.exportAsZipEllipsis, systemImage: "square.and.arrow.up")
+                        Label("Eksporter som .zip...", systemImage: "square.and.arrow.up")
                     }
                 } label: {
                     Image(systemName: "archivebox")
@@ -95,7 +95,7 @@ struct ToolbarView: View {
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
-                .help(viewModel.selectedItemIds.isEmpty ? viewModel.loc.zipAll : viewModel.loc.zipSelected)
+                .help(viewModel.selectedItemIds.isEmpty ? "Zip alle" : "Zip valgte")
             }
         }
     }
@@ -105,7 +105,7 @@ struct ToolbarView: View {
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = true
         panel.canChooseFiles = true
-        panel.title = viewModel.loc.chooseFiles
+        panel.title = "Velg filer"
 
         if panel.runModal() == .OK {
             viewModel.importURLs(panel.urls)

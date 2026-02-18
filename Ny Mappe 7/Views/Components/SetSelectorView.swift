@@ -23,7 +23,7 @@ struct SetSelectorView: View {
                 }
             } label: {
                 HStack(spacing: 4) {
-                    Text(viewModel.activeSet?.name ?? viewModel.loc.noSets)
+                    Text(viewModel.activeSet?.name ?? "Ingen sett")
                         .font(Design.titleFont)
                         .foregroundColor(Design.primaryText)
                     Image(systemName: "chevron.down")
@@ -47,12 +47,12 @@ struct SetSelectorView: View {
             // Set management
             if let activeSet = viewModel.activeSet, viewModel.sets.count > 1 {
                 Menu {
-                    Button(viewModel.loc.rename) {
+                    Button("Gi nytt navn") {
                         editingSetId = activeSet.id
                         editingName = activeSet.name
                     }
                     if viewModel.sets.count > 1 {
-                        Button(viewModel.loc.deleteSet, role: .destructive) {
+                        Button("Slett sett", role: .destructive) {
                             viewModel.deleteSet(activeSet.id)
                         }
                     }
@@ -78,7 +78,7 @@ struct SetSelectorView: View {
                     )
             }
             .buttonStyle(.plain)
-            .help(viewModel.loc.newSet)
+            .help("Nytt sett")
         }
         .sheet(isPresented: $showNewSetSheet) {
             newSetSheet
@@ -90,11 +90,11 @@ struct SetSelectorView: View {
 
     private var newSetSheet: some View {
         VStack(spacing: 16) {
-            Text(viewModel.loc.newSet)
+            Text("Nytt sett")
                 .font(Design.headingFont)
                 .foregroundColor(Design.primaryText)
 
-            TextField(viewModel.loc.setName, text: $newSetName)
+            TextField("Navn p\u{00E5} sett", text: $newSetName)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 200)
                 .onSubmit {
@@ -102,13 +102,13 @@ struct SetSelectorView: View {
                 }
 
             HStack(spacing: 12) {
-                Button(viewModel.loc.cancel) {
+                Button("Avbryt") {
                     showNewSetSheet = false
                     newSetName = ""
                 }
                 .buttonStyle(Design.PillButtonStyle())
 
-                Button(viewModel.loc.create) {
+                Button("Opprett") {
                     createSet()
                 }
                 .buttonStyle(Design.PillButtonStyle(isAccent: true, isSolid: true))
@@ -129,11 +129,11 @@ struct SetSelectorView: View {
 
     private func renameSetSheet(setId: UUID) -> some View {
         VStack(spacing: 16) {
-            Text(viewModel.loc.rename)
+            Text("Gi nytt navn")
                 .font(Design.headingFont)
                 .foregroundColor(Design.primaryText)
 
-            TextField(viewModel.loc.setName, text: $editingName)
+            TextField("Navn p\u{00E5} sett", text: $editingName)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 200)
                 .onSubmit {
@@ -141,12 +141,12 @@ struct SetSelectorView: View {
                 }
 
             HStack(spacing: 12) {
-                Button(viewModel.loc.cancel) {
+                Button("Avbryt") {
                     editingSetId = nil
                 }
                 .buttonStyle(Design.PillButtonStyle())
 
-                Button(viewModel.loc.save) {
+                Button("Lagre") {
                     renameSet(setId)
                 }
                 .buttonStyle(Design.PillButtonStyle(isAccent: true, isSolid: true))

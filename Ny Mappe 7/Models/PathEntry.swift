@@ -38,18 +38,17 @@ struct PathEntry: Identifiable, Codable, Hashable {
     }
 
     var timeAgo: String {
-        let loc = Loc(l: AppLanguage.current)
         let interval = Date().timeIntervalSince(dateAdded)
-        if interval < 60 { return loc.now }
+        if interval < 60 { return "nå" }
         if interval < 3600 {
             let mins = Int(interval / 60)
-            return loc.minutesAgo(mins)
+            return "\(mins) min siden"
         }
         if interval < 86400 {
             let hours = Int(interval / 3600)
-            return loc.hoursAgo(hours)
+            return "\(hours)t siden"
         }
         let days = Int(interval / 86400)
-        return loc.daysAgo(days)
+        return "\(days)d siden"
     }
 }

@@ -25,25 +25,44 @@ final class StashViewModel: ObservableObject {
     @Published var activeTab: AppTab = .files
     @Published var clipboardEntries: [ClipboardEntry] = []
     @Published var selectedClipboardIds: Set<UUID> = []
+    @Published var clipboardSearchText: String = ""
+    @Published var clipboardSearchFocusTrigger: Bool = false
+    @Published var maxClipboardEntries: Int = 0
+
+    var filteredClipboardEntries: [ClipboardEntry] {
+        if clipboardSearchText.isEmpty { return clipboardEntries }
+        let query = clipboardSearchText.lowercased()
+        return clipboardEntries.filter { $0.text.lowercased().contains(query) }
+    }
     @Published var pathEntries: [PathEntry] = []
     @Published var selectedPathIds: Set<UUID> = []
     @Published var autoCleanupFilesDays: Int? = nil
     @Published var autoCleanupClipboardDays: Int? = nil
     @Published var autoCleanupPathsDays: Int? = nil
     @Published var showBatchRenameSheet: Bool = false
-    @Published var clipboardSearchText: String = ""
-    @Published var language: AppLanguage = .no {
-        didSet { AppLanguage.current = language }
-    }
 
-    var loc: Loc { Loc(l: language) }
+    // Sheets Collector
+    @Published var sheetsCollectorEnabled: Bool = false
+    @Published var sheetsColumnCount: Int = 2
+    @Published var sheetsRows: [[String]] = []
+    @Published var sheetsCurrentRow: [String] = []
+    @Published var sheetsFillByColumn: Bool = false
+    @Published var sheetsColumnData: [[String]] = []
+    @Published var sheetsActiveColumnIndex: Int = 0
 
     enum AppTab {
         case files
-        case screenshots
         case clipboard
-        case paths
+        case tools
     }
+
+    enum ToolsSubTab {
+        case screenshots
+        case paths
+        case sheets
+    }
+
+    @Published var activeToolsTab: ToolsSubTab = .screenshots
 
     // MARK: - Services
 
@@ -68,10 +87,15 @@ final class StashViewModel: ObservableObject {
         switch activeTab {
         case .files:
             filtered = filtered.filter { !$0.isScreenshot }
-        case .screenshots:
-            filtered = filtered.filter { $0.isScreenshot }
-        case .clipboard, .paths:
-            return []  // Clipboard/Paths tabs don't show StashItems
+        case .clipboard:
+            return []
+        case .tools:
+            switch activeToolsTab {
+            case .screenshots:
+                filtered = filtered.filter { $0.isScreenshot }
+            case .paths, .sheets:
+                return []
+            }
         }
 
         // Apply filter (only in full mode)
@@ -116,16 +140,12 @@ final class StashViewModel: ObservableObject {
         return items.filter { $0.setId == setId && !$0.isScreenshot }.count
     }
 
-    var clipboardCount: Int {
-        clipboardEntries.count
+    var toolsCount: Int {
+        screenshotCount + pathCount + sheetsRowCount
     }
 
-    var filteredClipboardEntries: [ClipboardEntry] {
-        if clipboardSearchText.trimmingCharacters(in: .whitespaces).isEmpty {
-            return clipboardEntries
-        }
-        let query = clipboardSearchText.lowercased()
-        return clipboardEntries.filter { $0.text.lowercased().contains(query) }
+    var clipboardCount: Int {
+        clipboardEntries.count
     }
 
     var pathCount: Int {
@@ -158,8 +178,6 @@ final class StashViewModel: ObservableObject {
             self.autoCleanupFilesDays = state.autoCleanupFilesDays
             self.autoCleanupClipboardDays = state.autoCleanupClipboardDays
             self.autoCleanupPathsDays = state.autoCleanupPathsDays
-            self.language = state.language
-            AppLanguage.current = state.language
 
             // Validate staged files still exist
             self.items = staging.validateItems(self.items)
@@ -210,8 +228,7 @@ final class StashViewModel: ObservableObject {
                 saveScreenshots: self.saveScreenshots,
                 autoCleanupFilesDays: self.autoCleanupFilesDays,
                 autoCleanupClipboardDays: self.autoCleanupClipboardDays,
-                autoCleanupPathsDays: self.autoCleanupPathsDays,
-                language: self.language
+                autoCleanupPathsDays: self.autoCleanupPathsDays
             )
             self.persistence.saveState(state)
         }
@@ -282,7 +299,7 @@ final class StashViewModel: ObservableObject {
             self.isImporting = false
 
             if !result.errors.isEmpty {
-                self.errorMessage = self.loc.importFailed(result.errors.joined(separator: "; "))
+                self.errorMessage = "Some files failed to import: \(result.errors.joined(separator: "; "))"
                 self.showError = true
                 // Auto-dismiss after 5 seconds
                 Task {
@@ -314,7 +331,7 @@ final class StashViewModel: ObservableObject {
         guard let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [
             .urlReadingFileURLsOnly: true
         ]) as? [URL], !urls.isEmpty else {
-            errorMessage = loc.noFilesOnClipboard
+            errorMessage = "No files found on clipboard"
             showError = true
             Task {
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
@@ -424,7 +441,7 @@ final class StashViewModel: ObservableObject {
                 self.items.append(zipItem)
                 self.scheduleSave()
             } catch {
-                self.errorMessage = self.loc.zipFailed(error.localizedDescription)
+                self.errorMessage = "Zip failed: \(error.localizedDescription)"
                 self.showError = true
                 Task {
                     try? await Task.sleep(nanoseconds: 5_000_000_000)
@@ -460,12 +477,11 @@ final class StashViewModel: ObservableObject {
 
     static func relativeTime(from date: Date) -> String {
         let interval = Date().timeIntervalSince(date)
-        let loc = Loc(l: AppLanguage.current)
-        if interval < 60 { return loc.justNow }
-        if interval < 3600 { return loc.minutesAgoShort(Int(interval / 60)) }
-        if interval < 86400 { return loc.hoursAgoShort(Int(interval / 3600)) }
-        if interval < 172800 { return loc.yesterday }
-        if interval < 604800 { return loc.daysAgo(Int(interval / 86400)) }
+        if interval < 60 { return "Akkurat n\u{00E5}" }
+        if interval < 3600 { return "\(Int(interval / 60))m siden" }
+        if interval < 86400 { return "\(Int(interval / 3600))t siden" }
+        if interval < 172800 { return "I g\u{00E5}r" }
+        if interval < 604800 { return "\(Int(interval / 86400))d siden" }
         let formatter = DateFormatter()
         formatter.dateStyle = .short
         formatter.timeStyle = .none
@@ -522,9 +538,13 @@ final class StashViewModel: ObservableObject {
         let entry = ClipboardEntry(text: text)
         clipboardEntries.insert(entry, at: 0)
 
-        // Keep max 200 entries
-        if clipboardEntries.count > 200 {
-            clipboardEntries = Array(clipboardEntries.prefix(200))
+        let limit = maxClipboardEntries > 0 ? maxClipboardEntries : 500
+        if clipboardEntries.count > limit {
+            clipboardEntries = Array(clipboardEntries.prefix(limit))
+        }
+
+        if sheetsCollectorEnabled {
+            addToSheetsCollector(text)
         }
 
         scheduleSave()
@@ -575,8 +595,8 @@ final class StashViewModel: ObservableObject {
         let combined = selected.map { $0.text }.joined(separator: "\n\n")
 
         let savePanel = NSSavePanel()
-        savePanel.title = loc.exportClipboard
-        savePanel.nameFieldStringValue = loc.clipboardTxt
+        savePanel.title = "Eksporter utklipp"
+        savePanel.nameFieldStringValue = "utklipp.txt"
         savePanel.allowedContentTypes = [.plainText]
         savePanel.canCreateDirectories = true
         savePanel.level = .floating
@@ -587,7 +607,7 @@ final class StashViewModel: ObservableObject {
                     try combined.write(to: url, atomically: true, encoding: .utf8)
                     self.selectedClipboardIds.removeAll()
                 } catch {
-                    self.errorMessage = self.loc.couldNotSaveFile(error.localizedDescription)
+                    self.errorMessage = "Kunne ikke lagre filen: \(error.localizedDescription)"
                     self.showError = true
                 }
             }
@@ -599,18 +619,18 @@ final class StashViewModel: ObservableObject {
         guard !selected.isEmpty else { return }
 
         // Build CSV: header + one row per entry
-        var csv = "\"\(loc.textHeader)\",\"\(loc.timeHeader)\",\"\(loc.pinnedHeader)\"\n"
+        var csv = "\"Tekst\",\"Tidspunkt\",\"Festet\"\n"
         let formatter = ISO8601DateFormatter()
         for entry in selected {
             let escaped = entry.text.replacingOccurrences(of: "\"", with: "\"\"")
             let date = formatter.string(from: entry.dateCopied)
-            let pinned = entry.isPinned ? loc.yes : loc.noStr
+            let pinned = entry.isPinned ? "Ja" : "Nei"
             csv += "\"\(escaped)\",\"\(date)\",\"\(pinned)\"\n"
         }
 
         let savePanel = NSSavePanel()
-        savePanel.title = loc.exportClipboardCSV
-        savePanel.nameFieldStringValue = loc.clipboardCsv
+        savePanel.title = "Eksporter utklipp som CSV"
+        savePanel.nameFieldStringValue = "utklipp.csv"
         savePanel.allowedContentTypes = [.commaSeparatedText]
         savePanel.canCreateDirectories = true
         savePanel.level = .floating
@@ -621,7 +641,7 @@ final class StashViewModel: ObservableObject {
                     try csv.write(to: url, atomically: true, encoding: .utf8)
                     self.selectedClipboardIds.removeAll()
                 } catch {
-                    self.errorMessage = self.loc.couldNotSaveFile(error.localizedDescription)
+                    self.errorMessage = "Kunne ikke lagre filen: \(error.localizedDescription)"
                     self.showError = true
                 }
             }
@@ -634,6 +654,208 @@ final class StashViewModel: ObservableObject {
 
     func deselectAllClipboardEntries() {
         selectedClipboardIds.removeAll()
+    }
+
+    // MARK: - Sheets Collector
+
+    func toggleSheetsCollector() {
+        sheetsCollectorEnabled.toggle()
+        if !sheetsCollectorEnabled {
+            clearSheetsData()
+        }
+    }
+
+    func toggleSheetsFillMode() {
+        clearSheetsData()
+        sheetsFillByColumn.toggle()
+        if sheetsFillByColumn {
+            initColumnData()
+        }
+    }
+
+    func setSheetsColumnCount(_ count: Int) {
+        let clamped = max(2, min(4, count))
+        sheetsColumnCount = clamped
+
+        if sheetsFillByColumn {
+            // Trim or expand column data, reset active index if needed
+            while sheetsColumnData.count > clamped {
+                sheetsColumnData.removeLast()
+            }
+            while sheetsColumnData.count < clamped {
+                sheetsColumnData.append([])
+            }
+            if sheetsActiveColumnIndex >= clamped {
+                sheetsActiveColumnIndex = clamped - 1
+            }
+        } else {
+            if sheetsCurrentRow.count >= clamped {
+                sheetsRows.append(sheetsCurrentRow)
+                sheetsCurrentRow.removeAll()
+            }
+        }
+    }
+
+    private func initColumnData() {
+        sheetsColumnData = Array(repeating: [], count: sheetsColumnCount)
+        sheetsActiveColumnIndex = 0
+    }
+
+    private func addToSheetsCollector(_ text: String) {
+        if sheetsFillByColumn {
+            if sheetsColumnData.isEmpty { initColumnData() }
+            sheetsColumnData[sheetsActiveColumnIndex].append(text)
+        } else {
+            sheetsCurrentRow.append(text)
+            if sheetsCurrentRow.count >= sheetsColumnCount {
+                sheetsRows.append(sheetsCurrentRow)
+                sheetsCurrentRow.removeAll()
+            }
+        }
+    }
+
+    func advanceSheetsColumn() {
+        guard sheetsFillByColumn else { return }
+        if sheetsActiveColumnIndex < sheetsColumnCount - 1 {
+            sheetsActiveColumnIndex += 1
+        }
+    }
+
+    func setSheetsActiveColumn(_ index: Int) {
+        guard sheetsFillByColumn, index >= 0, index < sheetsColumnCount else { return }
+        sheetsActiveColumnIndex = index
+    }
+
+    func removeSheetsRow(at index: Int) {
+        if sheetsFillByColumn {
+            for col in sheetsColumnData.indices {
+                if index < sheetsColumnData[col].count {
+                    sheetsColumnData[col].remove(at: index)
+                }
+            }
+        } else {
+            guard index >= 0 && index < sheetsRows.count else { return }
+            sheetsRows.remove(at: index)
+        }
+    }
+
+    func removeColumnEntry(column: Int, row: Int) {
+        guard sheetsFillByColumn, column >= 0, column < sheetsColumnData.count,
+              row >= 0, row < sheetsColumnData[column].count else { return }
+        sheetsColumnData[column].remove(at: row)
+    }
+
+    func clearSheetsData() {
+        sheetsRows.removeAll()
+        sheetsCurrentRow.removeAll()
+        sheetsColumnData.removeAll()
+        sheetsActiveColumnIndex = 0
+        if sheetsFillByColumn { initColumnData() }
+    }
+
+    func copySheetsToClipboard() {
+        let allRows: [[String]]
+
+        if sheetsFillByColumn {
+            let maxRows = sheetsColumnData.map { $0.count }.max() ?? 0
+            guard maxRows > 0 else { return }
+            var rows: [[String]] = []
+            for rowIdx in 0..<maxRows {
+                var row: [String] = []
+                for col in 0..<sheetsColumnCount {
+                    if col < sheetsColumnData.count && rowIdx < sheetsColumnData[col].count {
+                        row.append(sheetsColumnData[col][rowIdx])
+                    } else {
+                        row.append("")
+                    }
+                }
+                rows.append(row)
+            }
+            allRows = rows
+        } else {
+            var rows = sheetsRows
+            if !sheetsCurrentRow.isEmpty {
+                var padded = sheetsCurrentRow
+                while padded.count < sheetsColumnCount {
+                    padded.append("")
+                }
+                rows.append(padded)
+            }
+            allRows = rows
+        }
+
+        guard !allRows.isEmpty else { return }
+        let tsv = allRows.map { $0.joined(separator: "\t") }.joined(separator: "\n")
+        copyTextToPasteboard(tsv)
+        clearSheetsData()
+    }
+
+    func exportSheetsAsCSV() {
+        let allRows: [[String]]
+
+        if sheetsFillByColumn {
+            let maxRows = sheetsColumnData.map { $0.count }.max() ?? 0
+            guard maxRows > 0 else { return }
+            var rows: [[String]] = []
+            for rowIdx in 0..<maxRows {
+                var row: [String] = []
+                for col in 0..<sheetsColumnCount {
+                    if col < sheetsColumnData.count && rowIdx < sheetsColumnData[col].count {
+                        row.append(sheetsColumnData[col][rowIdx])
+                    } else {
+                        row.append("")
+                    }
+                }
+                rows.append(row)
+            }
+            allRows = rows
+        } else {
+            var rows = sheetsRows
+            if !sheetsCurrentRow.isEmpty {
+                var padded = sheetsCurrentRow
+                while padded.count < sheetsColumnCount {
+                    padded.append("")
+                }
+                rows.append(padded)
+            }
+            allRows = rows
+        }
+
+        guard !allRows.isEmpty else { return }
+
+        func csvEscape(_ field: String) -> String {
+            if field.contains(",") || field.contains("\"") || field.contains("\n") {
+                return "\"" + field.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+            }
+            return field
+        }
+
+        let csv = allRows.map { row in
+            row.map { csvEscape($0) }.joined(separator: ",")
+        }.joined(separator: "\n")
+
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.commaSeparatedText]
+        panel.nameFieldStringValue = "sheets-export.csv"
+        panel.canCreateDirectories = true
+
+        if panel.runModal() == .OK, let url = panel.url {
+            try? csv.write(to: url, atomically: true, encoding: .utf8)
+        }
+    }
+
+    var sheetsRowCount: Int {
+        if sheetsFillByColumn {
+            return sheetsColumnData.map { $0.count }.max() ?? 0
+        }
+        return sheetsRows.count + (sheetsCurrentRow.isEmpty ? 0 : 1)
+    }
+
+    var sheetsTotalEntries: Int {
+        if sheetsFillByColumn {
+            return sheetsColumnData.reduce(0) { $0 + $1.count }
+        }
+        return sheetsRows.reduce(0) { $0 + $1.count } + sheetsCurrentRow.count
     }
 
     private func copyTextToPasteboard(_ text: String) {
@@ -856,8 +1078,8 @@ final class StashViewModel: ObservableObject {
         let content = toExport.map { $0.fileName }.joined(separator: "\n")
 
         let savePanel = NSSavePanel()
-        savePanel.title = loc.exportFileListTitle
-        savePanel.nameFieldStringValue = loc.filelistTxt
+        savePanel.title = "Eksporter filliste"
+        savePanel.nameFieldStringValue = "filliste.txt"
         savePanel.allowedContentTypes = [.plainText]
         savePanel.canCreateDirectories = true
         savePanel.level = .floating
@@ -873,7 +1095,7 @@ final class StashViewModel: ObservableObject {
         let toExport = selectedItemIds.isEmpty ? currentItems : selectedItems
         guard !toExport.isEmpty else { return }
         let fmt = ISO8601DateFormatter()
-        var csv = "\"\(loc.filenameHeader)\",\"\(loc.typeHeader)\",\"\(loc.categoryHeader)\",\"\(loc.sizeHeader)\",\"\(loc.bytesHeader)\",\"\(loc.dateHeader)\",\"\(loc.originalPathHeader)\"\n"
+        var csv = "\"Filnavn\",\"Type\",\"Kategori\",\"St\u{00F8}rrelse\",\"Bytes\",\"Dato\",\"Original sti\"\n"
         for item in toExport {
             let name = item.fileName.replacingOccurrences(of: "\"", with: "\"\"")
             let date = fmt.string(from: item.dateAdded)
@@ -882,8 +1104,8 @@ final class StashViewModel: ObservableObject {
         }
 
         let savePanel = NSSavePanel()
-        savePanel.title = loc.exportFileListCSV
-        savePanel.nameFieldStringValue = loc.filelistCsv
+        savePanel.title = "Eksporter filliste som CSV"
+        savePanel.nameFieldStringValue = "filliste.csv"
         savePanel.allowedContentTypes = [.commaSeparatedText]
         savePanel.canCreateDirectories = true
         savePanel.level = .floating
@@ -924,8 +1146,8 @@ final class StashViewModel: ObservableObject {
               let jsonString = String(data: data, encoding: .utf8) else { return }
 
         let savePanel = NSSavePanel()
-        savePanel.title = loc.exportFileListJSON
-        savePanel.nameFieldStringValue = loc.filelistJson
+        savePanel.title = "Eksporter filliste som JSON"
+        savePanel.nameFieldStringValue = "filliste.json"
         savePanel.allowedContentTypes = [.json]
         savePanel.canCreateDirectories = true
         savePanel.level = .floating
@@ -949,7 +1171,7 @@ final class StashViewModel: ObservableObject {
                 let zipURL = try await staging.zipItems(itemsToZip, setName: setName)
 
                 let savePanel = NSSavePanel()
-                savePanel.title = self.loc.exportAsZipTitle
+                savePanel.title = "Eksporter som .zip"
                 savePanel.nameFieldStringValue = zipURL.lastPathComponent
                 savePanel.allowedContentTypes = [.zip]
                 savePanel.canCreateDirectories = true
@@ -964,7 +1186,7 @@ final class StashViewModel: ObservableObject {
                             try FileManager.default.copyItem(at: zipURL, to: destURL)
                             try? FileManager.default.removeItem(at: zipURL)
                         } catch {
-                            self.errorMessage = self.loc.couldNotSaveZip(error.localizedDescription)
+                            self.errorMessage = "Kunne ikke lagre zip: \(error.localizedDescription)"
                             self.showError = true
                         }
                     } else {
@@ -972,7 +1194,7 @@ final class StashViewModel: ObservableObject {
                     }
                 }
             } catch {
-                self.errorMessage = self.loc.zipFailed(error.localizedDescription)
+                self.errorMessage = "Zip feilet: \(error.localizedDescription)"
                 self.showError = true
             }
         }
@@ -1002,7 +1224,7 @@ final class StashViewModel: ObservableObject {
                     isScreenshot: item.isScreenshot
                 )
             } catch {
-                errorMessage = loc.couldNotRename(item.fileName, error.localizedDescription)
+                errorMessage = "Kunne ikke gi nytt navn til \(item.fileName): \(error.localizedDescription)"
                 showError = true
             }
         }

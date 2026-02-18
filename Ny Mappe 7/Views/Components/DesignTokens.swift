@@ -157,10 +157,10 @@ enum Design {
         dark: (1.0, 1.0, 1.0, 0.10)
     )
 
-    // Header/tab surface
+    // Header/tab surface — glass-like
     static let headerSurface = adaptiveOpacity(
-        light: (1.0, 1.0, 1.0, 0.6),
-        dark: (1.0, 1.0, 1.0, 0.03)
+        light: (0.92, 0.91, 0.90, 0.85),
+        dark: (1.0, 1.0, 1.0, 0.08)
     )
     static let dividerColor = adaptiveOpacity(
         light: (0.0, 0.0, 0.0, 0.08),

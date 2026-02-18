@@ -24,7 +24,6 @@ SOURCES=(
     "$SRC_DIR/Models/StashSet.swift"
     "$SRC_DIR/Models/ClipboardEntry.swift"
     "$SRC_DIR/Models/PathEntry.swift"
-    "$SRC_DIR/Models/Localization.swift"
     "$SRC_DIR/ViewModels/StashViewModel.swift"
     "$SRC_DIR/Services/StagingService.swift"
     "$SRC_DIR/Services/ThumbnailService.swift"
@@ -49,6 +48,10 @@ SOURCES=(
     "$SRC_DIR/Views/Components/ClipboardListView.swift"
     "$SRC_DIR/Views/Components/BatchRenameSheet.swift"
     "$SRC_DIR/Views/Components/PathListView.swift"
+    "$SRC_DIR/Views/Components/SettingsSheet.swift"
+    "$SRC_DIR/Views/Components/SheetsCollectorView.swift"
+    "$SRC_DIR/Views/Components/SheetsTabView.swift"
+    "$SRC_DIR/Views/Components/ToolsTabView.swift"
 )
 
 FRAMEWORKS="-framework SwiftUI -framework AppKit -framework QuickLookThumbnailing -framework UniformTypeIdentifiers"
@@ -95,7 +98,9 @@ cp "$BUILD_DIR/${EXECUTABLE}" "$APP_DIR/Contents/MacOS/${EXECUTABLE}"
 chmod +x "$APP_DIR/Contents/MacOS/${EXECUTABLE}"
 
 # Copy icon if exists
-if [ -f "$SCRIPT_DIR/../Ny Mappe (7).app/Contents/Resources/AppIcon.icns" ]; then
+if [ -f "$SRC_DIR/AppIcon.icns" ]; then
+    cp "$SRC_DIR/AppIcon.icns" "$APP_DIR/Contents/Resources/"
+elif [ -f "$SCRIPT_DIR/../Ny Mappe (7).app/Contents/Resources/AppIcon.icns" ]; then
     cp "$SCRIPT_DIR/../Ny Mappe (7).app/Contents/Resources/AppIcon.icns" "$APP_DIR/Contents/Resources/"
 fi
 
@@ -112,9 +117,9 @@ cat > "$APP_DIR/Contents/Info.plist" << 'PLIST'
     <key>CFBundleIdentifier</key>
     <string>no.klippegeni.nymappe7</string>
     <key>CFBundleVersion</key>
-    <string>3.1</string>
+    <string>3.2</string>
     <key>CFBundleShortVersionString</key>
-    <string>3.1</string>
+    <string>3.2</string>
     <key>CFBundleExecutable</key>
     <string>NyMappa7</string>
     <key>CFBundlePackageType</key>

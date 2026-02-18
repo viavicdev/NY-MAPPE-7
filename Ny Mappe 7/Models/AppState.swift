@@ -13,7 +13,6 @@ struct AppState: Codable {
     var autoCleanupFilesDays: Int?
     var autoCleanupClipboardDays: Int?
     var autoCleanupPathsDays: Int?
-    var language: AppLanguage
 
     init(
         sets: [StashSet] = [],
@@ -27,8 +26,7 @@ struct AppState: Codable {
         saveScreenshots: Bool = false,
         autoCleanupFilesDays: Int? = nil,
         autoCleanupClipboardDays: Int? = nil,
-        autoCleanupPathsDays: Int? = nil,
-        language: AppLanguage = .no
+        autoCleanupPathsDays: Int? = nil
     ) {
         self.sets = sets
         self.items = items
@@ -42,7 +40,6 @@ struct AppState: Codable {
         self.autoCleanupFilesDays = autoCleanupFilesDays
         self.autoCleanupClipboardDays = autoCleanupClipboardDays
         self.autoCleanupPathsDays = autoCleanupPathsDays
-        self.language = language
     }
 
     // Support loading old state files that may use the old key name
@@ -50,7 +47,6 @@ struct AppState: Codable {
         case sets, items, activeSetId, alwaysOnTop, sortOption, filterOption, clipboardEntries, pathEntries
         case saveScreenshots = "screenshotWatchEnabled"
         case autoCleanupFilesDays, autoCleanupClipboardDays, autoCleanupPathsDays
-        case language
     }
 
     init(from decoder: Decoder) throws {
@@ -67,6 +63,5 @@ struct AppState: Codable {
         autoCleanupFilesDays = try container.decodeIfPresent(Int.self, forKey: .autoCleanupFilesDays)
         autoCleanupClipboardDays = try container.decodeIfPresent(Int.self, forKey: .autoCleanupClipboardDays)
         autoCleanupPathsDays = try container.decodeIfPresent(Int.self, forKey: .autoCleanupPathsDays)
-        language = try container.decodeIfPresent(AppLanguage.self, forKey: .language) ?? .no
     }
 }

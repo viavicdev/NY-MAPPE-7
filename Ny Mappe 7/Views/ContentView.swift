@@ -6,8 +6,9 @@ struct ContentView: View {
     @StateObject private var viewModel = StashViewModel()
     @State private var isDragTargeted = false
     @State private var dropPulse = false
-    @State private var forceDark: Bool? = nil  // nil = follow system
+    @State private var forceDark: Bool? = nil
     @State private var keyMonitor: Any?
+    @State private var showSettings = false
 
     var body: some View {
         ZStack {
@@ -15,25 +16,20 @@ struct ContentView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                if viewModel.isLightVersion {
-                    // Simple mode: tabs at the very top, no title bar
-                    tabBar
+                tabBar
+                if viewModel.isLightVersion && viewModel.activeTab != .tools {
                     simpleToolbar
-                } else {
-                    // Full mode: title bar + tabs
-                    titleBar
-                    tabBar
                 }
 
-                // Set selector (full mode, all tabs)
-                if !viewModel.isLightVersion {
+                // Set selector (full mode, files tab only)
+                if !viewModel.isLightVersion && viewModel.activeTab == .files {
                     SetSelectorView(viewModel: viewModel)
                         .padding(.horizontal, 12)
                         .padding(.top, 6)
                 }
 
-                if viewModel.activeTab == .paths {
-                    PathListView(viewModel: viewModel)
+                if viewModel.activeTab == .tools {
+                    ToolsTabView(viewModel: viewModel)
                 } else if viewModel.activeTab == .clipboard {
                     ClipboardListView(viewModel: viewModel)
                 } else {
@@ -63,7 +59,7 @@ struct ContentView: View {
 
                         // Cards grid or empty state
                         if viewModel.currentItems.isEmpty && !viewModel.isImporting {
-                            EmptyStateView(isScreenshotTab: viewModel.activeTab == .screenshots, language: viewModel.language)
+                            EmptyStateView(isScreenshotTab: false)
                                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                         } else {
                             CardsGridView(viewModel: viewModel)
@@ -94,12 +90,13 @@ struct ContentView: View {
                         .opacity(dropPulse ? 1.0 : 0.5)
 
                     VStack(spacing: 14) {
-                        Image(systemName: viewModel.activeTab == .paths ? "folder" : "arrow.down.circle")
+                        let isPathDrop = viewModel.activeTab == .tools && viewModel.activeToolsTab == .paths
+                        Image(systemName: isPathDrop ? "folder" : "arrow.down.circle")
                             .font(.system(size: 40, weight: .thin))
                             .foregroundColor(Design.accent)
                             .offset(y: dropPulse ? 0 : -6)
 
-                        Text(viewModel.activeTab == .paths ? viewModel.loc.dropToCopyPath : viewModel.loc.dropFilesHere)
+                        Text(isPathDrop ? "Slipp for \u{00E5} kopiere path" : "Slipp filer her")
                             .font(.system(size: 15, weight: .medium, design: .rounded))
                             .foregroundColor(Design.accent)
                     }
@@ -119,7 +116,7 @@ struct ContentView: View {
             ExternalDropZone(
                 isDragTargeted: $isDragTargeted,
                 onDrop: { urls in
-                    if viewModel.activeTab == .paths {
+                    if viewModel.activeTab == .tools && viewModel.activeToolsTab == .paths {
                         viewModel.handlePathDrop(urls)
                     } else {
                         viewModel.importURLs(urls)
@@ -137,6 +134,9 @@ struct ContentView: View {
         }
         .onDisappear {
             removeKeyboardMonitor()
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsSheet(viewModel: viewModel, forceDark: $forceDark)
         }
         .sheet(isPresented: $viewModel.showBatchRenameSheet) {
             BatchRenameSheet(viewModel: viewModel, isPresented: $viewModel.showBatchRenameSheet)
@@ -161,22 +161,64 @@ struct ContentView: View {
     private func handleKeyEvent(_ event: NSEvent) -> Bool {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
 
+        // Cmd+1/2/3: Switch tabs
+        if flags == .command, let chars = event.charactersIgnoringModifiers {
+            switch chars {
+            case "1":
+                withAnimation(.easeInOut(duration: 0.2)) { viewModel.activeTab = .files }
+                return true
+            case "2":
+                withAnimation(.easeInOut(duration: 0.2)) { viewModel.activeTab = .clipboard }
+                return true
+            case "3":
+                withAnimation(.easeInOut(duration: 0.2)) { viewModel.activeTab = .tools }
+                return true
+            default:
+                break
+            }
+        }
+
+        // Cmd+F: Focus search (clipboard tab)
+        if flags == .command && event.charactersIgnoringModifiers == "f" {
+            if viewModel.activeTab != .clipboard {
+                withAnimation(.easeInOut(duration: 0.2)) { viewModel.activeTab = .clipboard }
+            }
+            viewModel.clipboardSearchFocusTrigger.toggle()
+            return true
+        }
+
+        // Cmd+C: Copy selected clipboard entries
+        if flags == .command && event.charactersIgnoringModifiers == "c" {
+            if viewModel.activeTab == .clipboard && !viewModel.selectedClipboardIds.isEmpty {
+                viewModel.copySelectedClipboardEntries()
+                return true
+            }
+            return false
+        }
+
         // Cmd+A: Select all (context-aware per tab)
         if flags == .command && event.charactersIgnoringModifiers == "a" {
             switch viewModel.activeTab {
-            case .files, .screenshots:
+            case .files:
                 viewModel.selectAll()
             case .clipboard:
                 viewModel.selectAllClipboardEntries()
-            case .paths:
-                viewModel.selectAllPathEntries()
+            case .tools:
+                switch viewModel.activeToolsTab {
+                case .screenshots:
+                    viewModel.selectAll()
+                case .paths:
+                    viewModel.selectAllPathEntries()
+                case .sheets:
+                    break
+                }
             }
             return true
         }
 
-        // Cmd+V: Paste files (files/screenshots tabs)
+        // Cmd+V: Paste files (files tab or tools/screenshots)
         if flags == .command && event.charactersIgnoringModifiers == "v" {
-            if viewModel.activeTab == .files || viewModel.activeTab == .screenshots {
+            if viewModel.activeTab == .files || (viewModel.activeTab == .tools && viewModel.activeToolsTab == .screenshots) {
                 viewModel.importFromPasteboard()
                 return true
             }
@@ -186,7 +228,7 @@ struct ContentView: View {
         // Delete/Backspace: Remove selected
         if flags.isEmpty && (event.keyCode == 51 || event.keyCode == 117) {
             switch viewModel.activeTab {
-            case .files, .screenshots:
+            case .files:
                 if !viewModel.selectedItemIds.isEmpty {
                     withAnimation(.easeInOut(duration: 0.25)) {
                         viewModel.removeSelected()
@@ -198,10 +240,22 @@ struct ContentView: View {
                     withAnimation { viewModel.removeSelectedClipboardEntries() }
                     return true
                 }
-            case .paths:
-                if !viewModel.selectedPathIds.isEmpty {
-                    withAnimation { viewModel.removeSelectedPathEntries() }
-                    return true
+            case .tools:
+                switch viewModel.activeToolsTab {
+                case .screenshots:
+                    if !viewModel.selectedItemIds.isEmpty {
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            viewModel.removeSelected()
+                        }
+                        return true
+                    }
+                case .paths:
+                    if !viewModel.selectedPathIds.isEmpty {
+                        withAnimation { viewModel.removeSelectedPathEntries() }
+                        return true
+                    }
+                case .sheets:
+                    break
                 }
             }
             return false
@@ -209,7 +263,8 @@ struct ContentView: View {
 
         // Space: Quick Look first selected file
         if flags.isEmpty && event.keyCode == 49 {
-            if viewModel.activeTab == .files || viewModel.activeTab == .screenshots {
+            let isFileLikeTab = viewModel.activeTab == .files || (viewModel.activeTab == .tools && viewModel.activeToolsTab == .screenshots)
+            if isFileLikeTab {
                 if let first = viewModel.selectedItems.first {
                     NSWorkspace.shared.open(first.stagedURL)
                     return true
@@ -222,7 +277,7 @@ struct ContentView: View {
         if flags.isEmpty && event.keyCode == 53 {
             var hadSelection = false
             switch viewModel.activeTab {
-            case .files, .screenshots:
+            case .files:
                 if !viewModel.selectedItemIds.isEmpty {
                     viewModel.selectedItemIds.removeAll()
                     hadSelection = true
@@ -232,10 +287,20 @@ struct ContentView: View {
                     viewModel.selectedClipboardIds.removeAll()
                     hadSelection = true
                 }
-            case .paths:
-                if !viewModel.selectedPathIds.isEmpty {
-                    viewModel.selectedPathIds.removeAll()
-                    hadSelection = true
+            case .tools:
+                switch viewModel.activeToolsTab {
+                case .screenshots:
+                    if !viewModel.selectedItemIds.isEmpty {
+                        viewModel.selectedItemIds.removeAll()
+                        hadSelection = true
+                    }
+                case .paths:
+                    if !viewModel.selectedPathIds.isEmpty {
+                        viewModel.selectedPathIds.removeAll()
+                        hadSelection = true
+                    }
+                case .sheets:
+                    break
                 }
             }
             if !hadSelection {
@@ -246,16 +311,26 @@ struct ContentView: View {
             return true
         }
 
+        // Cmd+W: Close panel
+        if flags == .command && event.charactersIgnoringModifiers == "w" {
+            NSApplication.shared.windows
+                .first(where: { $0.title == "Ny Mappe (7)" })?
+                .orderOut(nil)
+            return true
+        }
+
         return false
     }
 
     private func resizePanelForMode(light: Bool) {
         DispatchQueue.main.async {
             guard let window = NSApplication.shared.windows.first(where: { $0.title == "Ny Mappe (7)" }) else { return }
+            let newWidth: CGFloat = light ? 380 : 480
             let newHeight: CGFloat = light ? 310 : 520
             let oldFrame = window.frame
+            let newX = oldFrame.midX - (newWidth / 2)
             let newY = oldFrame.maxY - newHeight
-            let newFrame = NSRect(x: oldFrame.origin.x, y: newY, width: oldFrame.width, height: newHeight)
+            let newFrame = NSRect(x: newX, y: newY, width: newWidth, height: newHeight)
             window.setFrame(newFrame, display: true, animate: true)
         }
     }
@@ -269,11 +344,8 @@ struct ContentView: View {
                     Image(systemName: "doc.badge.plus")
                 }
                 .buttonStyle(Design.IconButtonStyle(isAccent: true))
-                .help(viewModel.loc.addFiles)
+                .help("Legg til filer")
             }
-
-            settingsMenu
-                .frame(width: 28, height: 28)
 
             // Inline stats
             if simpleStatsCount > 0 {
@@ -284,7 +356,7 @@ struct ContentView: View {
                     Text(simpleStatsLabel)
                         .font(Design.captionFont)
                         .foregroundColor(Design.subtleText)
-                    if viewModel.activeTab == .files || viewModel.activeTab == .screenshots {
+                    if viewModel.activeTab == .files {
                         Text("\u{2022}")
                             .foregroundColor(Design.subtleText.opacity(0.4))
                             .font(.system(size: 9))
@@ -301,10 +373,10 @@ struct ContentView: View {
             if viewModel.activeTab == .files && !viewModel.currentItems.isEmpty {
                 Menu {
                     Button(action: { viewModel.zipItems() }) {
-                        Label(viewModel.loc.zipToStash, systemImage: "archivebox")
+                        Label("Zip til stash", systemImage: "archivebox")
                     }
                     Button(action: { viewModel.exportAsZip() }) {
-                        Label(viewModel.loc.exportAsZipEllipsis, systemImage: "square.and.arrow.up")
+                        Label("Eksporter som .zip...", systemImage: "square.and.arrow.up")
                     }
                 } label: {
                     Image(systemName: "archivebox")
@@ -314,7 +386,7 @@ struct ContentView: View {
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
-                .help(viewModel.selectedItemIds.isEmpty ? viewModel.loc.zipAll : viewModel.loc.zipSelected)
+                .help(viewModel.selectedItemIds.isEmpty ? "Zip alle" : "Zip valgte")
             }
         }
         .padding(.horizontal, 12)
@@ -324,28 +396,25 @@ struct ContentView: View {
     private var simpleStatsCount: Int {
         switch viewModel.activeTab {
         case .files: return viewModel.fileCount
-        case .screenshots: return viewModel.screenshotCount
         case .clipboard: return viewModel.clipboardCount
-        case .paths: return viewModel.pathCount
+        case .tools: return viewModel.toolsCount
         }
     }
 
     private var simpleStatsIcon: String {
         switch viewModel.activeTab {
         case .files: return "doc.on.doc"
-        case .screenshots: return "camera.viewfinder"
         case .clipboard: return "doc.on.clipboard"
-        case .paths: return "folder"
+        case .tools: return "wrench.and.screwdriver"
         }
     }
 
     private var simpleStatsLabel: String {
         let c = simpleStatsCount
         switch viewModel.activeTab {
-        case .files: return viewModel.loc.filesCount(c)
-        case .screenshots: return viewModel.loc.screenshotsCount(c)
-        case .clipboard: return viewModel.loc.clipsCount(c)
-        case .paths: return viewModel.loc.pathsCount(c)
+        case .files: return "\(c) filer"
+        case .clipboard: return "\(c) utklipp"
+        case .tools: return "\(c) elementer"
         }
     }
 
@@ -354,188 +423,49 @@ struct ContentView: View {
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = true
         panel.canChooseFiles = true
-        panel.title = viewModel.loc.chooseFiles
+        panel.title = "Velg filer"
         if panel.runModal() == .OK {
             viewModel.importURLs(panel.urls)
         }
     }
 
-    @ViewBuilder
-    private func cleanupOption(_ label: String, value: Int?, current: Int?, onSelect: @escaping (Int?) -> Void) -> some View {
-        Button(action: { onSelect(value) }) {
-            HStack {
-                Text(label)
-                if current == value { Image(systemName: "checkmark") }
-            }
-        }
-    }
 
-    // MARK: - Title Bar (redesigned with circular app icon)
+    // MARK: - Title Bar (full mode only: app icon + title)
 
     private var titleBar: some View {
         HStack(spacing: 12) {
-            if !viewModel.isLightVersion {
-                // App icon in accent circle (full mode only)
-                ZStack {
-                    Circle()
-                        .fill(Design.accent.opacity(0.15))
-                        .frame(width: 30, height: 30)
-                    Image(systemName: "tray.and.arrow.down.fill")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(Design.accent)
-                }
-
-                Text("Ny Mappe (7)")
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .foregroundColor(Design.primaryText)
+            ZStack {
+                Circle()
+                    .fill(Design.accent.opacity(0.15))
+                    .frame(width: 30, height: 30)
+                Image(systemName: "tray.and.arrow.down.fill")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(Design.accent)
             }
+
+            Text("Ny Mappe (7)")
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .foregroundColor(Design.primaryText)
 
             Spacer()
-
-            settingsMenu
-                .frame(width: 28, height: 28)
-
-            // Close panel
-            Button(action: {
-                NSApplication.shared.windows
-                    .first(where: { $0.title == "Ny Mappe (7)" })?
-                    .orderOut(nil)
-            }) {
-                Image(systemName: "xmark")
-            }
-            .buttonStyle(Design.CloseButtonStyle())
-            .help(viewModel.loc.closePanel)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, viewModel.isLightVersion ? 8 : 14)
+        .padding(.vertical, 10)
         .background(Design.headerSurface)
     }
 
-    // MARK: - Shared Settings Menu
+    // MARK: - Settings Button
 
-    private var settingsMenu: some View {
-        Menu {
-            Toggle(isOn: Binding(
-                get: { viewModel.saveScreenshots },
-                set: { viewModel.setSaveScreenshots($0) }
-            )) {
-                Label(viewModel.loc.saveScreenshots, systemImage: "camera.viewfinder")
-            }
-
-            Divider()
-
-            Button(action: {
-                withAnimation { viewModel.isLightVersion.toggle() }
-            }) {
-                HStack {
-                    Text(viewModel.isLightVersion ? viewModel.loc.switchToFull : viewModel.loc.switchToSimple)
-                    if !viewModel.isLightVersion {
-                        Image(systemName: "checkmark")
-                    }
-                }
-            }
-
-            Divider()
-
-            // Language picker
-            Menu(viewModel.loc.language) {
-                ForEach(AppLanguage.allCases, id: \.self) { lang in
-                    Button(action: {
-                        viewModel.language = lang
-                        viewModel.scheduleSave()
-                    }) {
-                        HStack {
-                            Text(lang.displayName)
-                            if viewModel.language == lang { Image(systemName: "checkmark") }
-                        }
-                    }
-                }
-            }
-
-            Divider()
-
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.2)) { forceDark = true }
-            }) {
-                HStack {
-                    Image(systemName: "moon.fill")
-                    Text(viewModel.loc.dark)
-                    if forceDark == true { Image(systemName: "checkmark") }
-                }
-            }
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.2)) { forceDark = false }
-            }) {
-                HStack {
-                    Image(systemName: "sun.max.fill")
-                    Text(viewModel.loc.light)
-                    if forceDark == false { Image(systemName: "checkmark") }
-                }
-            }
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.2)) { forceDark = nil }
-            }) {
-                HStack {
-                    Image(systemName: "circle.lefthalf.filled")
-                    Text(viewModel.loc.followSystem)
-                    if forceDark == nil { Image(systemName: "checkmark") }
-                }
-            }
-
-            Divider()
-
-            // About
-            Button(action: {
-                NotificationCenter.default.post(name: .showAboutPanel, object: nil)
-            }) {
-                Label(viewModel.loc.about, systemImage: "info.circle")
-            }
-
-            // Quit
-            Button(action: {
-                NSApp.terminate(nil)
-            }) {
-                Label(viewModel.loc.quit, systemImage: "power")
-            }
-
-            Divider()
-
-            Menu(viewModel.loc.autoCleanup) {
-                Menu(viewModel.loc.filesOlderThan) {
-                    cleanupOption(viewModel.loc.never, value: nil, current: viewModel.autoCleanupFilesDays) { viewModel.autoCleanupFilesDays = $0; viewModel.scheduleSave() }
-                    cleanupOption(viewModel.loc.days(7), value: 7, current: viewModel.autoCleanupFilesDays) { viewModel.autoCleanupFilesDays = $0; viewModel.scheduleSave() }
-                    cleanupOption(viewModel.loc.days(14), value: 14, current: viewModel.autoCleanupFilesDays) { viewModel.autoCleanupFilesDays = $0; viewModel.scheduleSave() }
-                    cleanupOption(viewModel.loc.days(30), value: 30, current: viewModel.autoCleanupFilesDays) { viewModel.autoCleanupFilesDays = $0; viewModel.scheduleSave() }
-                    cleanupOption(viewModel.loc.days(60), value: 60, current: viewModel.autoCleanupFilesDays) { viewModel.autoCleanupFilesDays = $0; viewModel.scheduleSave() }
-                    cleanupOption(viewModel.loc.days(90), value: 90, current: viewModel.autoCleanupFilesDays) { viewModel.autoCleanupFilesDays = $0; viewModel.scheduleSave() }
-                }
-                Menu(viewModel.loc.clipboardOlderThan) {
-                    cleanupOption(viewModel.loc.never, value: nil, current: viewModel.autoCleanupClipboardDays) { viewModel.autoCleanupClipboardDays = $0; viewModel.scheduleSave() }
-                    cleanupOption(viewModel.loc.days(7), value: 7, current: viewModel.autoCleanupClipboardDays) { viewModel.autoCleanupClipboardDays = $0; viewModel.scheduleSave() }
-                    cleanupOption(viewModel.loc.days(14), value: 14, current: viewModel.autoCleanupClipboardDays) { viewModel.autoCleanupClipboardDays = $0; viewModel.scheduleSave() }
-                    cleanupOption(viewModel.loc.days(30), value: 30, current: viewModel.autoCleanupClipboardDays) { viewModel.autoCleanupClipboardDays = $0; viewModel.scheduleSave() }
-                    cleanupOption(viewModel.loc.days(60), value: 60, current: viewModel.autoCleanupClipboardDays) { viewModel.autoCleanupClipboardDays = $0; viewModel.scheduleSave() }
-                    cleanupOption(viewModel.loc.days(90), value: 90, current: viewModel.autoCleanupClipboardDays) { viewModel.autoCleanupClipboardDays = $0; viewModel.scheduleSave() }
-                }
-                Menu(viewModel.loc.pathsOlderThan) {
-                    cleanupOption(viewModel.loc.never, value: nil, current: viewModel.autoCleanupPathsDays) { viewModel.autoCleanupPathsDays = $0; viewModel.scheduleSave() }
-                    cleanupOption(viewModel.loc.days(7), value: 7, current: viewModel.autoCleanupPathsDays) { viewModel.autoCleanupPathsDays = $0; viewModel.scheduleSave() }
-                    cleanupOption(viewModel.loc.days(14), value: 14, current: viewModel.autoCleanupPathsDays) { viewModel.autoCleanupPathsDays = $0; viewModel.scheduleSave() }
-                    cleanupOption(viewModel.loc.days(30), value: 30, current: viewModel.autoCleanupPathsDays) { viewModel.autoCleanupPathsDays = $0; viewModel.scheduleSave() }
-                    cleanupOption(viewModel.loc.days(60), value: 60, current: viewModel.autoCleanupPathsDays) { viewModel.autoCleanupPathsDays = $0; viewModel.scheduleSave() }
-                    cleanupOption(viewModel.loc.days(90), value: 90, current: viewModel.autoCleanupPathsDays) { viewModel.autoCleanupPathsDays = $0; viewModel.scheduleSave() }
-                }
-            }
-        } label: {
+    private var settingsButton: some View {
+        Button(action: { showSettings = true }) {
             Image(systemName: "gearshape")
                 .font(.system(size: 12, weight: .light))
                 .foregroundColor(Design.subtleText)
                 .background(Design.buttonTint)
                 .clipShape(Circle())
         }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
-        .help(viewModel.loc.settings)
+        .buttonStyle(.plain)
+        .help("Innstillinger")
     }
 
     // MARK: - Bottom Bar (simple mode: settings + close)
@@ -553,7 +483,7 @@ struct ContentView: View {
                         get: { viewModel.saveScreenshots },
                         set: { viewModel.setSaveScreenshots($0) }
                     )) {
-                        Label(viewModel.loc.saveScreenshots, systemImage: "camera.viewfinder")
+                        Label("Lagre skjermbilder", systemImage: "camera.viewfinder")
                     }
 
                     Divider()
@@ -562,7 +492,7 @@ struct ContentView: View {
                         withAnimation { viewModel.isLightVersion.toggle() }
                     }) {
                         HStack {
-                            Text(viewModel.loc.switchToFull)
+                            Text("Bytt til full versjon")
                         }
                     }
 
@@ -573,7 +503,7 @@ struct ContentView: View {
                     }) {
                         HStack {
                             Image(systemName: "moon.fill")
-                            Text(viewModel.loc.dark)
+                            Text("M\u{00F8}rk")
                             if forceDark == true { Image(systemName: "checkmark") }
                         }
                     }
@@ -582,7 +512,7 @@ struct ContentView: View {
                     }) {
                         HStack {
                             Image(systemName: "sun.max.fill")
-                            Text(viewModel.loc.light)
+                            Text("Lys")
                             if forceDark == false { Image(systemName: "checkmark") }
                         }
                     }
@@ -591,7 +521,7 @@ struct ContentView: View {
                     }) {
                         HStack {
                             Image(systemName: "circle.lefthalf.filled")
-                            Text(viewModel.loc.followSystem)
+                            Text("F\u{00F8}lg system")
                             if forceDark == nil { Image(systemName: "checkmark") }
                         }
                     }
@@ -626,13 +556,21 @@ struct ContentView: View {
     // MARK: - Tab Bar (redesigned with thick underline + red badges)
 
     private var tabBar: some View {
-        HStack(spacing: 0) {
-            tabButton(title: viewModel.loc.files, icon: "doc.on.doc", count: viewModel.fileCount, tab: .files)
-            tabButton(title: viewModel.loc.screen, icon: "camera.viewfinder", count: viewModel.screenshotCount, tab: .screenshots)
-            tabButton(title: viewModel.loc.clipboard, icon: "doc.on.clipboard", count: viewModel.clipboardCount, tab: .clipboard)
-            tabButton(title: viewModel.loc.path, icon: "folder", count: viewModel.pathCount, tab: .paths)
+        ZStack(alignment: .topTrailing) {
+            HStack(spacing: 0) {
+                tabButton(title: "Filer", icon: "doc.on.doc", count: viewModel.fileCount, tab: .files)
+                tabButton(title: "Utklipp", icon: "doc.on.clipboard", count: viewModel.clipboardCount, tab: .clipboard)
+                tabButton(title: "Verkt\u{00F8}y", icon: "wrench.and.screwdriver", count: viewModel.toolsCount, tab: .tools)
 
-            if viewModel.isLightVersion {
+                Spacer()
+                    .frame(width: 52)
+            }
+            .padding(.leading, 2)
+
+            HStack(spacing: 4) {
+                settingsButton
+                    .frame(width: 20, height: 20)
+
                 Button(action: {
                     NSApplication.shared.windows
                         .first(where: { $0.title == "Ny Mappe (7)" })?
@@ -647,13 +585,11 @@ struct ContentView: View {
                         .overlay(Circle().stroke(Design.borderColor, lineWidth: 0.5))
                 }
                 .buttonStyle(.plain)
-                .help(viewModel.loc.closePanel)
-                .padding(.trailing, 6)
-                .padding(.bottom, 3)
+                .help("Lukk panelet")
             }
+            .padding(.trailing, 8)
+            .padding(.top, 4)
         }
-        .padding(.leading, 2)
-        .padding(.trailing, viewModel.isLightVersion ? 0 : 8)
         .background(Design.headerSurface)
         .overlay(
             Rectangle()
@@ -678,16 +614,15 @@ struct ContentView: View {
                     Text(title)
                         .font(.system(size: 11, weight: isActive ? .bold : .medium, design: .rounded))
                     if count > 0 {
-                        let badgeText = count > 999 ? "999+" : "\(count)"
-                        let badgeWidth: CGFloat = badgeText.count <= 2 ? 16 : CGFloat(10 + badgeText.count * 5)
-                        ZStack {
-                            Capsule()
-                                .fill(isActive ? Design.accent : Design.badgeRed)
-                                .frame(width: badgeWidth, height: 16)
-                            Text(badgeText)
-                                .font(.system(size: 9, weight: .bold, design: .rounded))
-                                .foregroundColor(.white)
-                        }
+                        Text("\(count)")
+                            .font(.system(size: 9, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, count >= 100 ? 5 : count >= 10 ? 4 : 0)
+                            .frame(minWidth: 20, minHeight: 20)
+                            .background(
+                                Capsule()
+                                    .fill(isActive ? Design.accent : Design.badgeRed)
+                            )
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -703,7 +638,6 @@ struct ContentView: View {
             }
         }
         .buttonStyle(.plain)
-        .frame(maxWidth: .infinity)
     }
 }
 

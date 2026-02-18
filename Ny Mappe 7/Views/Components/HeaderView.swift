@@ -12,7 +12,7 @@ struct HeaderView: View {
                     Image(systemName: "doc.on.doc")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(Design.subtleText)
-                    Text(viewModel.loc.filesCount(viewModel.currentSetItemCount))
+                    Text("\(viewModel.currentSetItemCount) filer")
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundColor(Design.subtleText)
                 }
@@ -27,7 +27,7 @@ struct HeaderView: View {
                 Spacer()
 
                 if !viewModel.selectedItemIds.isEmpty {
-                    Text(viewModel.loc.selected(viewModel.selectedItemIds.count))
+                    Text("\(viewModel.selectedItemIds.count) valgt")
                         .font(.system(size: 11, weight: .bold, design: .rounded))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
@@ -43,7 +43,7 @@ struct HeaderView: View {
                     ProgressView(value: viewModel.importProgress.fraction)
                         .tint(Design.progressBlue)
 
-                    Text(viewModel.loc.importing(viewModel.importProgress.completed, viewModel.importProgress.total))
+                    Text("Importerer \(viewModel.importProgress.completed)/\(viewModel.importProgress.total)")
                         .font(Design.captionFont)
                         .foregroundColor(Design.subtleText)
                 }

@@ -24,7 +24,7 @@ struct ActionBarView: View {
                         HStack(spacing: 3) {
                             Image(systemName: "trash")
                                 .font(.system(size: 9))
-                            Text(viewModel.loc.removeSelected)
+                            Text("Fjern valgte")
                                 .font(.system(size: 10, weight: .medium))
                         }
                     }
@@ -39,7 +39,7 @@ struct ActionBarView: View {
                     HStack(spacing: 3) {
                         Image(systemName: "xmark.circle")
                             .font(.system(size: 9))
-                        Text(viewModel.loc.clear)
+                        Text("T\u{00F8}m")
                             .font(.system(size: 10, weight: .medium))
                     }
                 }

@@ -6,7 +6,6 @@ struct MultiFileDragButton: View {
     let urls: [URL]
     let label: String
     let icon: String
-    var helpText: String = ""
 
     var body: some View {
         ZStack {
@@ -33,6 +32,6 @@ struct MultiFileDragButton: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .fixedSize()
-        .help(helpText)
+        .help("Dra til en annen app for \u{00E5} overf\u{00F8}re filer")
     }
 }
