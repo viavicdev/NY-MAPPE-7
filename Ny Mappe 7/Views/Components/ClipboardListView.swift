@@ -216,7 +216,7 @@ struct ClipboardListView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onChange(of: viewModel.clipboardSearchFocusTrigger) {
+        .onChange(of: viewModel.clipboardSearchFocusTrigger) { _ in
             isSearchFocused = true
         }
     }
