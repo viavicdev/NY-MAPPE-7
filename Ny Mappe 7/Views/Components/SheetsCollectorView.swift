@@ -34,7 +34,7 @@ struct SheetsCollectorView: View {
             if viewModel.sheetsInputMode == .auto {
                 fillModePicker
             }
-            inputModePicker
+            inputModeMenu
 
             Spacer()
 
@@ -127,99 +127,68 @@ struct SheetsCollectorView: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
-    // MARK: - Input Mode Picker
+    // MARK: - Input Mode Menu
 
-    private var inputModePicker: some View {
-        HStack(spacing: 2) {
-            inputModeButton(
-                mode: .auto,
-                icon: "clipboard",
-                label: "Auto"
-            )
-            .help("Alle kolonner fylles automatisk fra utklippstavlen")
-
-            inputModeButton(
-                mode: .mixed,
-                icon: "keyboard.badge.ellipsis",
-                label: "Miks"
-            )
-            .help("E\u{00E9}n kolonne fra utklipp, resten skriver du manuelt")
-
-            inputModeButton(
-                mode: .manual,
-                icon: "keyboard",
-                label: "Manuell"
-            )
-            .help("Skriv i alle kolonner manuelt")
-
-            infoButton
+    private var inputModeLabel: String {
+        switch viewModel.sheetsInputMode {
+        case .auto: return "Auto"
+        case .mixed: return "Miks"
+        case .manual: return "Manuell"
         }
-        .padding(2)
-        .background(Design.buttonTint.opacity(0.5))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
-    private func inputModeButton(mode: StashViewModel.SheetsInputMode, icon: String, label: String) -> some View {
-        Button(action: {
-            withAnimation(.easeInOut(duration: 0.15)) {
-                viewModel.setSheetsInputMode(mode)
+    private var inputModeIcon: String {
+        switch viewModel.sheetsInputMode {
+        case .auto: return "clipboard"
+        case .mixed: return "keyboard.badge.ellipsis"
+        case .manual: return "keyboard"
+        }
+    }
+
+    private var inputModeMenu: some View {
+        Menu {
+            Button(action: { withAnimation { viewModel.setSheetsInputMode(.auto) } }) {
+                Label {
+                    VStack(alignment: .leading) {
+                        Text("Auto")
+                        Text("Alle kolonner fra utklipp").font(.caption2)
+                    }
+                } icon: { Image(systemName: "clipboard") }
             }
-        }) {
-            HStack(spacing: 2) {
-                Image(systemName: icon)
+            Button(action: { withAnimation { viewModel.setSheetsInputMode(.mixed) } }) {
+                Label {
+                    VStack(alignment: .leading) {
+                        Text("Miks")
+                        Text("Utklipp + skriv manuelt").font(.caption2)
+                    }
+                } icon: { Image(systemName: "keyboard.badge.ellipsis") }
+            }
+            Button(action: { withAnimation { viewModel.setSheetsInputMode(.manual) } }) {
+                Label {
+                    VStack(alignment: .leading) {
+                        Text("Manuell")
+                        Text("Skriv alt selv").font(.caption2)
+                    }
+                } icon: { Image(systemName: "keyboard") }
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: inputModeIcon)
                     .font(.system(size: 8))
-                Text(label)
-                    .font(.system(size: 9, weight: viewModel.sheetsInputMode == mode ? .bold : .medium, design: .rounded))
+                Text(inputModeLabel)
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 6, weight: .bold))
             }
-            .padding(.horizontal, 6)
+            .padding(.horizontal, 7)
             .frame(height: 20)
-            .background(viewModel.sheetsInputMode == mode ? Design.accent.opacity(0.15) : Design.buttonTint)
-            .foregroundColor(viewModel.sheetsInputMode == mode ? Design.accent : Design.subtleText)
+            .background(Design.accent.opacity(0.1))
+            .foregroundColor(Design.accent)
             .clipShape(RoundedRectangle(cornerRadius: 6))
         }
-        .buttonStyle(.plain)
-    }
-
-    @State private var showInfoPopover = false
-
-    private var infoButton: some View {
-        Button(action: { showInfoPopover.toggle() }) {
-            Image(systemName: "info.circle")
-                .font(.system(size: 9, weight: .medium))
-                .foregroundColor(Design.subtleText.opacity(0.5))
-                .frame(width: 20, height: 20)
-        }
-        .buttonStyle(.plain)
-        .popover(isPresented: $showInfoPopover, arrowEdge: .bottom) {
-            VStack(alignment: .leading, spacing: 8) {
-                infoRow(icon: "clipboard", title: "Auto",
-                        desc: "Kopier tekst \u{2014} alle kolonner fylles automatisk fra utklippstavlen.")
-                infoRow(icon: "keyboard.badge.ellipsis", title: "Miks",
-                        desc: "E\u{00E9}n kolonne fylles fra utklipp, resten skriver du selv. Trykk \u{00AB}Legg til\u{00BB} for \u{00E5} lagre raden.")
-                infoRow(icon: "keyboard", title: "Manuell",
-                        desc: "Skriv i alle kolonner manuelt. Trykk \u{00AB}Legg til\u{00BB} eller Enter for \u{00E5} lagre.")
-            }
-            .padding(12)
-            .frame(width: 260)
-        }
-    }
-
-    private func infoRow(icon: String, title: String, desc: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 10))
-                .foregroundColor(Design.accent)
-                .frame(width: 16)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundColor(Design.primaryText)
-                Text(desc)
-                    .font(.system(size: 10, design: .rounded))
-                    .foregroundColor(Design.subtleText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Velg input-modus: Auto (utklipp), Miks (utklipp + manuell), Manuell")
     }
 
     // MARK: - Body
