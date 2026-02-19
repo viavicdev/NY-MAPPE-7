@@ -186,11 +186,20 @@ struct SheetsCollectorView: View {
     private var collectorBody: some View {
         VStack(spacing: 4) {
             gridHeaders
-            gridRows
+                .padding(.horizontal, 12)
+
+            ScrollView {
+                VStack(spacing: 4) {
+                    gridRows
+                }
+                .padding(.horizontal, 12)
+            }
+            .frame(maxHeight: 200)
+
             actionButtons
+                .padding(.horizontal, 12)
+                .padding(.bottom, 10)
         }
-        .padding(.horizontal, 12)
-        .padding(.bottom, 10)
     }
 
     // MARK: - Grid Headers
