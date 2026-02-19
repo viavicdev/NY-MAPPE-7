@@ -3,7 +3,7 @@ import SwiftUI
 struct SheetsCollectorView: View {
     @ObservedObject var viewModel: StashViewModel
     @State private var isExpanded = true
-    @State private var showInfoPopover = false
+    @State private var showSettings = false
 
     private let columnLabels = ["A", "B", "C", "D"]
 
@@ -19,7 +19,7 @@ struct SheetsCollectorView: View {
         }
     }
 
-    // MARK: - Header
+    // MARK: - Header (clean)
 
     private var collectorHeader: some View {
         HStack(spacing: 8) {
@@ -31,8 +31,7 @@ struct SheetsCollectorView: View {
                 .font(.system(size: 12, weight: .bold, design: .rounded))
                 .foregroundColor(Design.primaryText)
 
-            columnCountPicker
-            pasteColumnSelector
+            statusPill
 
             Spacer()
 
@@ -42,8 +41,15 @@ struct SheetsCollectorView: View {
                     .foregroundColor(Design.subtleText)
             }
 
-            autoPasteToggle
-            infoButton
+            Button(action: { showSettings.toggle() }) {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(Design.subtleText)
+            }
+            .buttonStyle(Design.InlineActionStyle())
+            .popover(isPresented: $showSettings, arrowEdge: .bottom) {
+                sheetsSettingsPopover
+            }
 
             Button(action: {
                 withAnimation(.easeInOut(duration: 0.15)) {
@@ -60,124 +66,168 @@ struct SheetsCollectorView: View {
         .background(Design.accent.opacity(0.04))
     }
 
-    // MARK: - Column Count Picker
-
-    private var columnCountPicker: some View {
-        HStack(spacing: 2) {
-            ForEach(2...4, id: \.self) { count in
-                Button(action: {
-                    withAnimation(.easeInOut(duration: 0.1)) {
-                        viewModel.setSheetsColumnCount(count)
-                    }
-                }) {
-                    Text("\(count)")
-                        .font(.system(size: 10, weight: viewModel.sheetsColumnCount == count ? .bold : .medium, design: .rounded))
-                        .frame(width: 22, height: 20)
-                        .background(viewModel.sheetsColumnCount == count ? Design.accent.opacity(0.15) : Design.buttonTint)
-                        .foregroundColor(viewModel.sheetsColumnCount == count ? Design.accent : Design.subtleText)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                }
-                .buttonStyle(.plain)
-            }
+    private var statusPill: some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(viewModel.sheetsAutoPaste ? Design.accent : Design.subtleText.opacity(0.3))
+                .frame(width: 5, height: 5)
+            Text("\(viewModel.sheetsColumnCount) kol")
+                .font(.system(size: 9, weight: .medium, design: .rounded))
+                .foregroundColor(Design.subtleText)
+            Text("\u{00B7}")
+                .foregroundColor(Design.subtleText.opacity(0.3))
+            Text(viewModel.sheetsAutoPaste ? "limer i \(columnLabels[viewModel.sheetsPasteColumn])" : "manuell")
+                .font(.system(size: 9, weight: .medium, design: .rounded))
+                .foregroundColor(viewModel.sheetsAutoPaste ? Design.accent : Design.subtleText)
         }
-        .padding(2)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
         .background(Design.buttonTint.opacity(0.5))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(Capsule())
     }
 
-    // MARK: - Paste Column Selector
+    // MARK: - Settings Popover
 
-    private var pasteColumnSelector: some View {
-        HStack(spacing: 2) {
-            Image(systemName: "clipboard")
-                .font(.system(size: 8))
-                .foregroundColor(Design.subtleText.opacity(0.5))
+    private var sheetsSettingsPopover: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Sheets-innstillinger")
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundColor(Design.primaryText)
 
-            ForEach(0..<viewModel.sheetsColumnCount, id: \.self) { col in
-                Button(action: {
-                    withAnimation(.easeInOut(duration: 0.1)) {
-                        viewModel.sheetsPasteColumn = col
-                    }
-                }) {
-                    Text(columnLabels[col])
-                        .font(.system(size: 9, weight: viewModel.sheetsPasteColumn == col ? .bold : .medium, design: .rounded))
-                        .frame(width: 18, height: 18)
-                        .background(viewModel.sheetsPasteColumn == col ? Design.accent.opacity(0.2) : Color.clear)
-                        .foregroundColor(viewModel.sheetsPasteColumn == col ? Design.accent : Design.subtleText)
-                        .clipShape(RoundedRectangle(cornerRadius: 5))
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
-        .background(Design.buttonTint.opacity(0.5))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .help("Lim-inn-kolonne: kopiert tekst havner i \(columnLabels[viewModel.sheetsPasteColumn])")
-    }
-
-    // MARK: - Auto-Paste Toggle
-
-    private var autoPasteToggle: some View {
-        Button(action: {
-            withAnimation(.easeInOut(duration: 0.15)) {
-                viewModel.sheetsAutoPaste.toggle()
-            }
-        }) {
-            HStack(spacing: 3) {
-                Image(systemName: viewModel.sheetsAutoPaste ? "clipboard.fill" : "clipboard")
-                    .font(.system(size: 9))
-                Text(viewModel.sheetsAutoPaste ? "P\u{00E5}" : "Av")
-                    .font(.system(size: 9, weight: .medium, design: .rounded))
-            }
-            .padding(.horizontal, 6)
-            .frame(height: 20)
-            .background(viewModel.sheetsAutoPaste ? Design.accent.opacity(0.12) : Design.buttonTint)
-            .foregroundColor(viewModel.sheetsAutoPaste ? Design.accent : Design.subtleText)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-        }
-        .buttonStyle(.plain)
-        .help(viewModel.sheetsAutoPaste ? "Auto-lim er p\u{00E5}: kopiert tekst legges i kolonne \(columnLabels[viewModel.sheetsPasteColumn])" : "Auto-lim er av: skriv manuelt i alle celler")
-    }
-
-    // MARK: - Info Button
-
-    private var infoButton: some View {
-        Image(systemName: "questionmark.circle")
-            .font(.system(size: 10, weight: .medium))
-            .foregroundColor(Design.subtleText.opacity(0.4))
-            .onHover { hovering in
-                showInfoPopover = hovering
-            }
-            .popover(isPresented: $showInfoPopover, arrowEdge: .bottom) {
-                VStack(alignment: .leading, spacing: 8) {
-                    infoRow(icon: "clipboard.fill", title: "Auto-lim",
-                            desc: "N\u{00E5}r p\u{00E5}: kopiert tekst havner automatisk i valgt kolonne. Ny rad opprettes automatisk.")
-                    infoRow(icon: "keyboard", title: "Manuell redigering",
-                            desc: "Klikk i hvilken som helst celle for \u{00E5} skrive eller redigere. Fungerer alltid, uavhengig av auto-lim.")
-                    infoRow(icon: "arrow.left.arrow.right", title: "Lim-inn-kolonne",
-                            desc: "Velg hvilken kolonne som mottar kopiert tekst med A/B/C/D-knappene.")
-                }
-                .padding(12)
-                .frame(width: 260)
-            }
-    }
-
-    private func infoRow(icon: String, title: String, desc: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 10))
-                .foregroundColor(Design.accent)
-                .frame(width: 16)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
+            // Column count
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Antall kolonner")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundColor(Design.primaryText)
-                Text(desc)
-                    .font(.system(size: 10, design: .rounded))
-                    .foregroundColor(Design.subtleText)
+
+                HStack(spacing: 4) {
+                    ForEach(2...4, id: \.self) { count in
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.1)) {
+                                viewModel.setSheetsColumnCount(count)
+                            }
+                        }) {
+                            Text("\(count)")
+                                .font(.system(size: 11, weight: viewModel.sheetsColumnCount == count ? .bold : .medium, design: .rounded))
+                                .frame(width: 36, height: 28)
+                                .background(viewModel.sheetsColumnCount == count ? Design.accent.opacity(0.15) : Design.buttonTint)
+                                .foregroundColor(viewModel.sheetsColumnCount == count ? Design.accent : Design.subtleText)
+                                .clipShape(RoundedRectangle(cornerRadius: 7))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            Divider()
+
+            // Auto-paste
+            VStack(alignment: .leading, spacing: 5) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Auto-lim fra utklipp")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundColor(Design.primaryText)
+                        Text("Kopiert tekst legges automatisk i valgt kolonne")
+                            .font(.system(size: 9, design: .rounded))
+                            .foregroundColor(Design.subtleText.opacity(0.6))
+                    }
+                    Spacer()
+                    Toggle("", isOn: $viewModel.sheetsAutoPaste)
+                        .toggleStyle(.switch)
+                        .scaleEffect(0.7)
+                }
+
+                if viewModel.sheetsAutoPaste {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Lim-inn-kolonne")
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .foregroundColor(Design.subtleText)
+
+                        HStack(spacing: 4) {
+                            ForEach(0..<viewModel.sheetsColumnCount, id: \.self) { col in
+                                Button(action: {
+                                    withAnimation(.easeInOut(duration: 0.1)) {
+                                        viewModel.sheetsPasteColumn = col
+                                    }
+                                }) {
+                                    HStack(spacing: 3) {
+                                        if viewModel.sheetsPasteColumn == col {
+                                            Image(systemName: "clipboard.fill")
+                                                .font(.system(size: 8))
+                                        }
+                                        Text(columnLabels[col])
+                                            .font(.system(size: 11, weight: viewModel.sheetsPasteColumn == col ? .bold : .medium, design: .rounded))
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 6)
+                                    .background(viewModel.sheetsPasteColumn == col ? Design.accent.opacity(0.15) : Design.buttonTint)
+                                    .foregroundColor(viewModel.sheetsPasteColumn == col ? Design.accent : Design.subtleText)
+                                    .clipShape(RoundedRectangle(cornerRadius: 7))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .padding(.top, 2)
+                }
+            }
+
+            Divider()
+
+            // How it works
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Slik fungerer det")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundColor(Design.primaryText)
+
+                howToRow(step: "1", text: "Kopier tekst med \u{2318}C \u{2014} den havner automatisk i valgt kolonne")
+                howToRow(step: "2", text: "Klikk i hvilken som helst celle for \u{00E5} skrive eller redigere manuelt")
+                howToRow(step: "3", text: "Nye rader opprettes automatisk n\u{00E5}r du fyller inn data")
+                howToRow(step: "4", text: "Trykk \u{00AB}Kopier\u{00BB} for \u{00E5} lime rett inn i Google Sheets, eller eksporter som .csv")
+            }
+
+            Divider()
+
+            // Tips
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: "lightbulb.fill")
+                    .font(.system(size: 10))
+                    .foregroundColor(.yellow.opacity(0.8))
+                Text("Tips: Skru av auto-lim hvis du bare vil skrive manuelt i alle kolonner.")
+                    .font(.system(size: 9, design: .rounded))
+                    .foregroundColor(Design.subtleText.opacity(0.6))
                     .fixedSize(horizontal: false, vertical: true)
             }
+
+            if !viewModel.openAIKey.isEmpty {
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 10))
+                        .foregroundColor(Design.accent)
+                    Text("AI-filnavn er aktivert \u{2014} eksporterte filer f\u{00E5}r automatisk forslag til navn.")
+                        .font(.system(size: 9, design: .rounded))
+                        .foregroundColor(Design.accent.opacity(0.7))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(16)
+        .frame(width: 280)
+    }
+
+    private func howToRow(step: String, text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(step)
+                .font(.system(size: 9, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+                .frame(width: 16, height: 16)
+                .background(Design.accent.opacity(0.6))
+                .clipShape(Circle())
+            Text(text)
+                .font(.system(size: 10, design: .rounded))
+                .foregroundColor(Design.subtleText)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
