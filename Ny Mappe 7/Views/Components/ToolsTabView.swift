@@ -147,7 +147,7 @@ struct ToolsTabView: View {
         VStack(spacing: 0) {
             SheetsCollectorView(viewModel: viewModel)
 
-            if viewModel.sheetsTotalEntries == 0 {
+            if viewModel.sheetsRowCount == 0 {
                 sheetsEmptyState
             }
 

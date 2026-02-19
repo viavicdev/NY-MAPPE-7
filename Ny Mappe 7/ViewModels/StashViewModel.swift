@@ -41,23 +41,12 @@ final class StashViewModel: ObservableObject {
     @Published var autoCleanupPathsDays: Int? = nil
     @Published var showBatchRenameSheet: Bool = false
 
-    // Sheets Collector
-    enum SheetsInputMode: String, CaseIterable {
-        case auto       // all columns from clipboard
-        case mixed      // one column clipboard, others manual
-        case manual     // all columns typed manually
-    }
-
+    // Sheets Collector — smart grid
     @Published var sheetsCollectorEnabled: Bool = false
     @Published var sheetsColumnCount: Int = 2
-    @Published var sheetsRows: [[String]] = []
-    @Published var sheetsCurrentRow: [String] = []
-    @Published var sheetsFillByColumn: Bool = false
-    @Published var sheetsColumnData: [[String]] = []
-    @Published var sheetsActiveColumnIndex: Int = 0
-    @Published var sheetsInputMode: SheetsInputMode = .auto
-    @Published var sheetsManualInputs: [String] = ["", ""]
+    @Published var sheetsGrid: [[String]] = [["", ""]]
     @Published var sheetsPasteColumn: Int = 0
+    @Published var sheetsAutoPaste: Bool = true
 
     enum AppTab {
         case files
@@ -674,195 +663,85 @@ final class StashViewModel: ObservableObject {
         }
     }
 
-    func toggleSheetsFillMode() {
-        clearSheetsData()
-        sheetsFillByColumn.toggle()
-        if sheetsFillByColumn {
-            initColumnData()
-        }
-    }
-
     func setSheetsColumnCount(_ count: Int) {
         let clamped = max(2, min(4, count))
         sheetsColumnCount = clamped
-        sheetsManualInputs = Array(repeating: "", count: clamped)
         if sheetsPasteColumn >= clamped { sheetsPasteColumn = 0 }
 
-        if sheetsFillByColumn {
-            // Trim or expand column data, reset active index if needed
-            while sheetsColumnData.count > clamped {
-                sheetsColumnData.removeLast()
-            }
-            while sheetsColumnData.count < clamped {
-                sheetsColumnData.append([])
-            }
-            if sheetsActiveColumnIndex >= clamped {
-                sheetsActiveColumnIndex = clamped - 1
-            }
-        } else {
-            if sheetsCurrentRow.count >= clamped {
-                sheetsRows.append(sheetsCurrentRow)
-                sheetsCurrentRow.removeAll()
+        for i in sheetsGrid.indices {
+            if sheetsGrid[i].count < clamped {
+                sheetsGrid[i].append(contentsOf: Array(repeating: "", count: clamped - sheetsGrid[i].count))
+            } else if sheetsGrid[i].count > clamped {
+                sheetsGrid[i] = Array(sheetsGrid[i].prefix(clamped))
             }
         }
-    }
-
-    private func initColumnData() {
-        sheetsColumnData = Array(repeating: [], count: sheetsColumnCount)
-        sheetsActiveColumnIndex = 0
+        if sheetsGrid.isEmpty || !sheetsGridLastRowEmpty() {
+            sheetsGrid.append(Array(repeating: "", count: clamped))
+        }
     }
 
     private func addToSheetsCollector(_ text: String) {
-        if sheetsInputMode == .manual { return }
+        guard sheetsAutoPaste else { return }
 
-        if sheetsInputMode == .mixed {
-            sheetsManualInputs[sheetsPasteColumn] = text
-            return
-        }
+        let targetRow = sheetsGridNextEmptyRow(in: sheetsPasteColumn)
+        sheetsGrid[targetRow][sheetsPasteColumn] = text
 
-        // .auto mode
-        if sheetsFillByColumn {
-            if sheetsColumnData.isEmpty { initColumnData() }
-            sheetsColumnData[sheetsActiveColumnIndex].append(text)
-        } else {
-            sheetsCurrentRow.append(text)
-            if sheetsCurrentRow.count >= sheetsColumnCount {
-                sheetsRows.append(sheetsCurrentRow)
-                sheetsCurrentRow.removeAll()
+        ensureEmptyLastRow()
+    }
+
+    private func sheetsGridNextEmptyRow(in col: Int) -> Int {
+        for i in 0..<sheetsGrid.count {
+            if sheetsGrid[i][col].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return i
             }
         }
+        let newRow = Array(repeating: "", count: sheetsColumnCount)
+        sheetsGrid.append(newRow)
+        return sheetsGrid.count - 1
     }
 
-    func commitMixedRow() {
-        let row = sheetsManualInputs.prefix(sheetsColumnCount).map { $0 }
-        guard row.contains(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else { return }
-        sheetsRows.append(Array(row))
-        resetManualInputs()
-    }
-
-    func commitManualRow() {
-        let row = sheetsManualInputs.prefix(sheetsColumnCount).map { $0 }
-        guard row.contains(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else { return }
-        sheetsRows.append(Array(row))
-        resetManualInputs()
-    }
-
-    func resetManualInputs() {
-        sheetsManualInputs = Array(repeating: "", count: sheetsColumnCount)
-    }
-
-    func setSheetsInputMode(_ mode: SheetsInputMode) {
-        sheetsInputMode = mode
-        resetManualInputs()
-    }
-
-    func advanceSheetsColumn() {
-        guard sheetsFillByColumn else { return }
-        if sheetsActiveColumnIndex < sheetsColumnCount - 1 {
-            sheetsActiveColumnIndex += 1
+    func ensureEmptyLastRow() {
+        if sheetsGrid.isEmpty || !sheetsGridLastRowEmpty() {
+            sheetsGrid.append(Array(repeating: "", count: sheetsColumnCount))
         }
     }
 
-    func setSheetsActiveColumn(_ index: Int) {
-        guard sheetsFillByColumn, index >= 0, index < sheetsColumnCount else { return }
-        sheetsActiveColumnIndex = index
+    private func sheetsGridLastRowEmpty() -> Bool {
+        guard let last = sheetsGrid.last else { return false }
+        return last.allSatisfy { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     }
 
     func removeSheetsRow(at index: Int) {
-        if sheetsFillByColumn {
-            for col in sheetsColumnData.indices {
-                if index < sheetsColumnData[col].count {
-                    sheetsColumnData[col].remove(at: index)
-                }
-            }
-        } else {
-            guard index >= 0 && index < sheetsRows.count else { return }
-            sheetsRows.remove(at: index)
+        guard index >= 0 && index < sheetsGrid.count else { return }
+        sheetsGrid.remove(at: index)
+        if sheetsGrid.isEmpty {
+            sheetsGrid.append(Array(repeating: "", count: sheetsColumnCount))
         }
-    }
-
-    func removeColumnEntry(column: Int, row: Int) {
-        guard sheetsFillByColumn, column >= 0, column < sheetsColumnData.count,
-              row >= 0, row < sheetsColumnData[column].count else { return }
-        sheetsColumnData[column].remove(at: row)
     }
 
     func clearSheetsData() {
-        sheetsRows.removeAll()
-        sheetsCurrentRow.removeAll()
-        sheetsColumnData.removeAll()
-        sheetsActiveColumnIndex = 0
-        if sheetsFillByColumn { initColumnData() }
+        sheetsGrid = [Array(repeating: "", count: sheetsColumnCount)]
+    }
+
+    func toggleSheetsPasteColumn() {
+        sheetsPasteColumn = (sheetsPasteColumn + 1) % sheetsColumnCount
+    }
+
+    private var sheetsFilledRows: [[String]] {
+        sheetsGrid.filter { row in
+            row.contains { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        }
     }
 
     func copySheetsToClipboard() {
-        let allRows: [[String]]
-
-        if sheetsFillByColumn {
-            let maxRows = sheetsColumnData.map { $0.count }.max() ?? 0
-            guard maxRows > 0 else { return }
-            var rows: [[String]] = []
-            for rowIdx in 0..<maxRows {
-                var row: [String] = []
-                for col in 0..<sheetsColumnCount {
-                    if col < sheetsColumnData.count && rowIdx < sheetsColumnData[col].count {
-                        row.append(sheetsColumnData[col][rowIdx])
-                    } else {
-                        row.append("")
-                    }
-                }
-                rows.append(row)
-            }
-            allRows = rows
-        } else {
-            var rows = sheetsRows
-            if !sheetsCurrentRow.isEmpty {
-                var padded = sheetsCurrentRow
-                while padded.count < sheetsColumnCount {
-                    padded.append("")
-                }
-                rows.append(padded)
-            }
-            allRows = rows
-        }
-
+        let allRows = sheetsFilledRows
         guard !allRows.isEmpty else { return }
         let tsv = allRows.map { $0.joined(separator: "\t") }.joined(separator: "\n")
         copyTextToPasteboard(tsv)
-        clearSheetsData()
     }
 
     func exportSheetsAsCSV() {
-        let allRows: [[String]]
-
-        if sheetsFillByColumn {
-            let maxRows = sheetsColumnData.map { $0.count }.max() ?? 0
-            guard maxRows > 0 else { return }
-            var rows: [[String]] = []
-            for rowIdx in 0..<maxRows {
-                var row: [String] = []
-                for col in 0..<sheetsColumnCount {
-                    if col < sheetsColumnData.count && rowIdx < sheetsColumnData[col].count {
-                        row.append(sheetsColumnData[col][rowIdx])
-                    } else {
-                        row.append("")
-                    }
-                }
-                rows.append(row)
-            }
-            allRows = rows
-        } else {
-            var rows = sheetsRows
-            if !sheetsCurrentRow.isEmpty {
-                var padded = sheetsCurrentRow
-                while padded.count < sheetsColumnCount {
-                    padded.append("")
-                }
-                rows.append(padded)
-            }
-            allRows = rows
-        }
-
+        let allRows = sheetsFilledRows
         guard !allRows.isEmpty else { return }
 
         func csvEscape(_ field: String) -> String {
@@ -887,17 +766,13 @@ final class StashViewModel: ObservableObject {
     }
 
     var sheetsRowCount: Int {
-        if sheetsFillByColumn {
-            return sheetsColumnData.map { $0.count }.max() ?? 0
-        }
-        return sheetsRows.count + (sheetsCurrentRow.isEmpty ? 0 : 1)
+        sheetsFilledRows.count
     }
 
     var sheetsTotalEntries: Int {
-        if sheetsFillByColumn {
-            return sheetsColumnData.reduce(0) { $0 + $1.count }
+        sheetsFilledRows.reduce(0) { total, row in
+            total + row.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count
         }
-        return sheetsRows.reduce(0) { $0 + $1.count } + sheetsCurrentRow.count
     }
 
     private func copyTextToPasteboard(_ text: String) {
