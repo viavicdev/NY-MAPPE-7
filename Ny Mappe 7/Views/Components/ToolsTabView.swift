@@ -149,9 +149,8 @@ struct ToolsTabView: View {
 
             if viewModel.sheetsRowCount == 0 {
                 sheetsEmptyState
+                    .padding(.top, 12)
             }
-
-            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
