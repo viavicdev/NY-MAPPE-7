@@ -8,7 +8,26 @@ En macOS menybar-app for **fil-staging**, **utklippshistorikk**, **skjermbilder*
 
 ---
 
-## Nytt i v3.2
+## Nytt i v3.3
+
+### Smart Sheets-grid
+
+Sheets-samleren er fullstendig omskrevet med en **smart redigerbar grid**:
+
+- **Alle celler er alltid redigerbare** — klikk i hvilken som helst celle for å skrive eller redigere
+- **Auto-lim** — kopiert tekst havner automatisk i en valgt kolonne, ny rad opprettes automatisk
+- **Velg lim-inn-kolonne** — bestem hvilken kolonne (A/B/C/D) som mottar utklipp
+- **Skru av auto-lim** for å jobbe helt manuelt
+- **Scrollbar grid** — mange rader uten at knappene forsvinner
+- **Innstillings-popover** — tannhjul-knapp med alle innstillinger + steg-for-steg guide
+- **Status-pill** i headeren viser nåværende konfigurasjon (f.eks. "● 2 kol · limer i A")
+
+### AI-navngivning av eksporter
+
+Når du eksporterer Sheets-data som CSV, kan **GPT-4o-mini** automatisk foreslå et beskrivende filnavn basert på innholdet (f.eks. `prosjekt-kostnader.csv` i stedet for `sheets-export.csv`).
+
+- Krever OpenAI API-nøkkel (legg inn under Innstillinger → AI)
+- Fungerer automatisk ved CSV-eksport, faller tilbake til standard hvis ingen nøkkel
 
 ### Ny fanestruktur
 
@@ -20,18 +39,15 @@ Tre hovedfaner erstatter de gamle fire:
 | **Utklipp** | Automatisk utklippshistorikk med søk og 2-kolonne grid |
 | **Verktøy** | Sub-faner: **Skjermbilder**, **Paths**, **Sheets-samler** |
 
-### Sheets-samler (nytt verktøy)
-
-Samler kopierte tekstbiter i kolonner for direkte liming i Google Sheets eller eksport som CSV. Støtter 2–4 kolonner med valgfri fyllretning (nedover eller bortover).
-
 ### Innstillingspanel
 
-Innstillingene er nå en **modal dialog** i stedet for dropdown-meny:
+Innstillingene er en **modal dialog**:
 
 - **Utseende** — Mørk / Lys / Følg system, enkel/full modus
-- **Utklipp** — Konfigurerbar maks-grense (50, 100, 200, 500, 1000, eller ubegrenset)
+- **Utklipp** — Konfigurerbar maks-grense (50–1000 eller ubegrenset)
 - **Skjermbilder** — Auto-lagring av/på
 - **Auto-opprydding** — Per kategori med valgfri alder
+- **AI** — OpenAI API-nøkkel for AI-navngivning
 - **Snarveier** — Oversikt over alle tastatursnarveier
 
 ### Utklipp-forbedringer
@@ -45,7 +61,7 @@ Innstillingene er nå en **modal dialog** i stedet for dropdown-meny:
 - **Drag & drop** — dra tekst fra utklipp-kort til andre apper
 - **Maks-grense** — konfigurerbar i innstillinger, eldste slettes automatisk
 
-### Nye tastatursnarveier
+### Tastatursnarveier
 
 | Snarvei | Handling |
 |---------|----------|
@@ -94,10 +110,12 @@ Innstillingene er nå en **modal dialog** i stedet for dropdown-meny:
 - Fest, vis i Finder
 
 ### Verktøy → Sheets-samler
-- Samler tekst i 2–4 kolonner
-- Fyllretning: nedover eller bortover
-- Kopier for Google Sheets (tab-separert)
-- Eksporter som .csv
+- Smart redigerbar grid — alle celler er alltid redigerbare
+- Auto-lim fra utklippstavlen i valgt kolonne, med automatisk rad-oppretting
+- 2–4 kolonner, velg lim-inn-kolonne (A/B/C/D) eller skru av auto-lim
+- Innstillings-popover med alle kontroller + steg-for-steg guide
+- Kopier for Google Sheets (tab-separert) eller eksporter som .csv
+- AI-navngivning av eksporterte filer (GPT-4o-mini, krever API-nøkkel)
 
 ### Enkel / Full modus
 - **Enkel** (standard): Kompakt panel

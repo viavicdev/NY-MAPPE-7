@@ -117,9 +117,9 @@ cat > "$APP_DIR/Contents/Info.plist" << 'PLIST'
     <key>CFBundleIdentifier</key>
     <string>no.klippegeni.nymappe7</string>
     <key>CFBundleVersion</key>
-    <string>3.2</string>
+    <string>3.3</string>
     <key>CFBundleShortVersionString</key>
-    <string>3.2</string>
+    <string>3.3</string>
     <key>CFBundleExecutable</key>
     <string>NyMappa7</string>
     <key>CFBundlePackageType</key>
