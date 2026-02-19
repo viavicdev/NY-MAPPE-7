@@ -17,6 +17,7 @@ struct SettingsSheet: View {
                     clipboardSection
                     screenshotSection
                     cleanupSection
+                    aiSection
                     shortcutsSection
                 }
                 .padding(16)
@@ -175,6 +176,53 @@ struct SettingsSheet: View {
             cleanupRow(title: "Paths", current: viewModel.autoCleanupPathsDays) {
                 viewModel.autoCleanupPathsDays = $0
                 viewModel.scheduleSave()
+            }
+        }
+    }
+
+    // MARK: - AI
+
+    @State private var showKey = false
+
+    private var aiSection: some View {
+        settingsGroup(title: "AI", icon: "sparkles") {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("OpenAI API-n\u{00F8}kkel")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundColor(Design.primaryText)
+
+                HStack(spacing: 6) {
+                    Group {
+                        if showKey {
+                            TextField("sk-...", text: $viewModel.openAIKey)
+                        } else {
+                            SecureField("sk-...", text: $viewModel.openAIKey)
+                        }
+                    }
+                    .font(.system(size: 10, design: .monospaced))
+                    .textFieldStyle(.plain)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(Design.cardBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Design.borderColor, lineWidth: 0.5)
+                    )
+
+                    Button(action: { showKey.toggle() }) {
+                        Image(systemName: showKey ? "eye.slash" : "eye")
+                            .font(.system(size: 10))
+                            .foregroundColor(Design.subtleText)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Text(viewModel.openAIKey.isEmpty
+                     ? "Legg til n\u{00F8}kkel for AI-navngivning av eksporterte filer"
+                     : "Aktiv \u{2014} eksporterte filer f\u{00E5}r forslag til filnavn fra GPT-4o-mini")
+                    .font(.system(size: 9, design: .rounded))
+                    .foregroundColor(viewModel.openAIKey.isEmpty ? Design.subtleText.opacity(0.5) : Design.accent.opacity(0.7))
             }
         }
     }

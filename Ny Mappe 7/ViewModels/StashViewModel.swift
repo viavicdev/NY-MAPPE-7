@@ -29,6 +29,11 @@ final class StashViewModel: ObservableObject {
     @Published var clipboardSearchFocusTrigger: Bool = false
     @Published var maxClipboardEntries: Int = 0
 
+    // OpenAI
+    @Published var openAIKey: String = "" {
+        didSet { UserDefaults.standard.set(openAIKey, forKey: "openAIAPIKey") }
+    }
+
     var filteredClipboardEntries: [ClipboardEntry] {
         if clipboardSearchText.isEmpty { return clipboardEntries }
         let query = clipboardSearchText.lowercased()
@@ -180,6 +185,8 @@ final class StashViewModel: ObservableObject {
             // Validate staged files still exist
             self.items = staging.validateItems(self.items)
         }
+
+        self.openAIKey = UserDefaults.standard.string(forKey: "openAIAPIKey") ?? ""
 
         performAutoCleanup()
 
@@ -755,14 +762,68 @@ final class StashViewModel: ObservableObject {
             row.map { csvEscape($0) }.joined(separator: ",")
         }.joined(separator: "\n")
 
+        if !openAIKey.isEmpty {
+            let preview = allRows.prefix(10).map { $0.joined(separator: " | ") }.joined(separator: "\n")
+            suggestFilename(for: preview) { suggested in
+                DispatchQueue.main.async {
+                    self.showSavePanel(csv: csv, defaultName: suggested ?? "sheets-export")
+                }
+            }
+        } else {
+            showSavePanel(csv: csv, defaultName: "sheets-export")
+        }
+    }
+
+    private func showSavePanel(csv: String, defaultName: String) {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.commaSeparatedText]
-        panel.nameFieldStringValue = "sheets-export.csv"
+        panel.nameFieldStringValue = defaultName + ".csv"
         panel.canCreateDirectories = true
 
         if panel.runModal() == .OK, let url = panel.url {
             try? csv.write(to: url, atomically: true, encoding: .utf8)
         }
+    }
+
+    func suggestFilename(for content: String, completion: @escaping (String?) -> Void) {
+        guard !openAIKey.isEmpty else { completion(nil); return }
+
+        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("Bearer \(openAIKey)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 8
+
+        let prompt = "Based on this spreadsheet data, suggest a short descriptive filename (2-4 words, lowercase, separated by hyphens, no file extension). Only respond with the filename, nothing else.\n\nData:\n\(content.prefix(500))"
+
+        let body: [String: Any] = [
+            "model": "gpt-4o-mini",
+            "messages": [["role": "user", "content": prompt]],
+            "max_tokens": 20,
+            "temperature": 0.3
+        ]
+
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            guard let data = data,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let choices = json["choices"] as? [[String: Any]],
+                  let message = choices.first?["message"] as? [String: Any],
+                  let text = message["content"] as? String else {
+                completion(nil)
+                return
+            }
+
+            let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: " ", with: "-")
+                .replacingOccurrences(of: ".csv", with: "")
+                .lowercased()
+                .filter { $0.isLetter || $0.isNumber || $0 == "-" }
+
+            completion(cleaned.isEmpty ? nil : String(cleaned.prefix(40)))
+        }.resume()
     }
 
     var sheetsRowCount: Int {
