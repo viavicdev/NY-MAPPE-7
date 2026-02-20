@@ -142,14 +142,25 @@ PLIST
 ARCHS=$(lipo -archs "$APP_DIR/Contents/MacOS/${EXECUTABLE}")
 SIZE=$(du -sh "$APP_DIR" | cut -f1)
 
+INSTALL_DIR="/Applications/Ny Mappe (7).app"
+
+# Kill running instance before replacing
+pkill -f "NyMappa7" 2>/dev/null && sleep 0.5 || true
+
+# Install to /Applications
+rm -rf "$INSTALL_DIR"
+cp -r "$APP_DIR" "$INSTALL_DIR"
+
 echo ""
 echo "✅ Build complete!"
-echo "   App:           $APP_DIR"
+echo "   App:           $INSTALL_DIR"
 echo "   Architectures: $ARCHS"
 echo "   Size:          $SIZE"
 echo ""
-echo "To run:  open \"$APP_DIR\""
-echo "To install: cp -r \"$APP_DIR\" /Applications/"
+
+# Auto-launch
+open "$INSTALL_DIR"
+echo "🚀 App installed to /Applications/ and launched!"
 
 # Cleanup build artifacts
 rm -rf "$BUILD_DIR"

@@ -861,7 +861,7 @@ final class StashViewModel: ObservableObject {
 
     // MARK: - Path Entries
 
-    /// Add a file/folder URL as a path entry, copy path to clipboard, and auto-close
+    /// Add a file/folder URL as a path entry and copy path to clipboard
     func addPathFromURL(_ url: URL) {
         var isDir: ObjCBool = false
         FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir)
@@ -959,13 +959,6 @@ final class StashViewModel: ObservableObject {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
                 self?.startClipboardWatch()
             }
-        }
-
-        // Auto-close panel after copy
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            NSApplication.shared.windows
-                .first(where: { $0.title == "Ny Mappe (7)" })?
-                .orderOut(nil)
         }
     }
 
