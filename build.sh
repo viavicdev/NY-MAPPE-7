@@ -4,7 +4,7 @@ set -e
 # ─────────────────────────────────────────────
 # Ny Mappe (7) — Universal Build Script
 # Builds for both Intel (x86_64) and Apple Silicon (arm64)
-# Requires: macOS 14+ with Xcode Command Line Tools
+# Requires: macOS 13+ with Xcode Command Line Tools (xcode-select --install)
 # ─────────────────────────────────────────────
 
 APP_NAME="Ny Mappe (7) v2"

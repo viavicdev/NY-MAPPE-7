@@ -126,7 +126,7 @@ Innstillingene er en **modal dialog**:
 - **Høyreklikk** for kontekstmeny: Åpne panel, Om, Avslutt
 - Panelet svever over alle vinduer (`NSPanel` med `level = .floating`)
 - Ingen Dock-ikon (`LSUIElement = true`)
-- Panelet lukkes automatisk etter vellykket fil-utdragning
+- Panelet lukkes automatisk etter vellykket fil-utdragning (ikke etter path-kopiering)
 
 ---
 
@@ -209,25 +209,34 @@ NY-MAPPE-7/
 
 ### Forutsetninger
 - macOS 13+ med Xcode Command Line Tools: `xcode-select --install`
-- **Xcode IDE er IKKE nødvendig**
+- **Xcode IDE er IKKE nødvendig** — prosjektet bruker `swiftc` direkte
 
-### Bygg (universal binary)
+### Bygg, installer og start
 
 ```bash
 ./build.sh
 ```
 
-### Kjør
+Build-scriptet gjør alt automatisk:
+1. Kompilerer for Intel (x86_64) og Apple Silicon (arm64)
+2. Lager universal binary med `lipo`
+3. Bygger `.app`-bundle med Info.plist og ikon
+4. Dreper eventuell kjørende instans
+5. Kopierer appen til `/Applications/Ny Mappe (7).app`
+6. Starter appen
+
+### Autostart ved login
+
+Appen er satt opp som **login item** — den starter automatisk når du logger inn.
+For å legge til manuelt:
 
 ```bash
-open "Ny Mappe (7) v2.app"
+osascript -e 'tell application "System Events" to make login item at end with properties {path:"/Applications/Ny Mappe (7).app", hidden:false}'
 ```
 
-### Installer
+### Legge til nye Swift-filer
 
-```bash
-cp -r "Ny Mappe (7) v2.app" /Applications/
-```
+Når du oppretter en ny `.swift`-fil, **må** du legge den til i `SOURCES`-arrayen i `build.sh`. Ellers kompileres den ikke.
 
 ---
 
@@ -256,7 +265,7 @@ rm -rf ~/Library/Application\ Support/GeniDrop/
 - **Dra inn**: `ExternalDropZone` (`NSViewRepresentable`) som avviser interne drag
 - **Dra ut**: `DraggableCardWrapper` og `DragSourceView` med `NSDraggingSource`
 - **Utklipp-drag**: `onDrag` med `NSItemProvider` for tekst fra utklipp-kort
-- **Auto-lukking**: Panel lukkes etter vellykket utdragning
+- **Auto-lukking**: Panel lukkes etter vellykket fil-utdragning (paths holder panelet åpent)
 
 ### Menybar / Flytende panel
 - `NSStatusItem` med SF Symbol
@@ -274,6 +283,16 @@ rm -rf ~/Library/Application\ Support/GeniDrop/
 - **Ingen App Sandbox**: Fri filtilgang og `/usr/bin/ditto` for zip
 - **Ingen .xcodeproj**: Bygges med `swiftc` via `build.sh`
 - **Nye filer**: Legg til i `SOURCES`-arrayen i `build.sh`
+
+---
+
+## Utviklerguide
+
+Se [CONTRIBUTING-ny-mappe-7.md](CONTRIBUTING-ny-mappe-7.md) for:
+- Arkitektur og kodestruktur
+- Hvordan legge til nye filer, verktøy, innstillinger og snarveier
+- Data-persistens og services
+- Viktige patterns og begrensninger (macOS 13-kompatibilitet)
 
 ---
 
