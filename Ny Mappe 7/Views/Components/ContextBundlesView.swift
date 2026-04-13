@@ -101,11 +101,18 @@ struct ContextBundlesView: View {
     @ViewBuilder
     private func bundlePill(_ bundle: ContextBundle) -> some View {
         let isActive = viewModel.activeContextBundleId == bundle.id
+        let urls = viewModel.bundleFileURLs(bundleId: bundle.id)
+        let hasFiles = !urls.isEmpty
 
-        Button(action: {
-            viewModel.setActiveContextBundle(bundle.id)
-        }) {
+        ZStack {
+            // Visuell stil
             HStack(spacing: 4) {
+                if hasFiles {
+                    // Liten drag-indikator viser at pillen kan dras
+                    Image(systemName: "arrow.up.doc.on.clipboard")
+                        .font(.system(size: 8, weight: .medium))
+                        .opacity(0.7)
+                }
                 Text(bundle.name)
                     .font(.system(size: 10, weight: isActive ? .bold : .medium, design: .rounded))
                 if bundle.items.count > 0 {
@@ -128,8 +135,20 @@ struct ContextBundlesView: View {
                     lineWidth: 0.5
                 )
             )
+            .allowsHitTesting(false)
+
+            // Usynlig NSView som fanger klikk + drag oppå pillen
+            DraggableCardWrapper(
+                urls: urls,
+                onClick: { _ in
+                    viewModel.setActiveContextBundle(bundle.id)
+                }
+            )
         }
-        .buttonStyle(.plain)
+        .fixedSize()
+        .help(hasFiles
+              ? "Klikk for å sette aktiv. Dra for å eksportere \(urls.count) fil\(urls.count == 1 ? "" : "er") til en annen app."
+              : "Klikk for å sette aktiv")
         .contextMenu {
             Button("Sett som aktiv") {
                 viewModel.setActiveContextBundle(bundle.id)
