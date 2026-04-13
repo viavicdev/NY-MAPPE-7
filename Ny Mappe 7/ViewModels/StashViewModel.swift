@@ -6,6 +6,10 @@ import UniformTypeIdentifiers
 
 @MainActor
 final class StashViewModel: ObservableObject {
+    // MARK: - Shared Instance
+
+    static let shared = StashViewModel()
+
     // MARK: - Published State
 
     @Published var sets: [StashSet] = []
@@ -27,12 +31,34 @@ final class StashViewModel: ObservableObject {
     @Published var selectedClipboardIds: Set<UUID> = []
     @Published var clipboardSearchText: String = ""
     @Published var clipboardSearchFocusTrigger: Bool = false
-    @Published var maxClipboardEntries: Int = 0
-
-    // OpenAI
-    @Published var openAIKey: String = "" {
-        didSet { UserDefaults.standard.set(openAIKey, forKey: "openAIAPIKey") }
+    @Published var maxClipboardEntries: Int = 0 {
+        didSet {
+            enforceClipboardLimit()
+        }
     }
+
+    // Clipboard-grupper
+    @Published var clipboardGroups: [ClipboardGroup] = []
+    @Published var activeClipboardGroupId: UUID?
+    @Published var expandedClipboardGroupIds: Set<UUID?> = [nil]
+    @Published var clipboardNewestOnTop: Bool = true
+    @Published var clipboardCopyBlankLines: Int = 1
+    @Published var clipboardIncludeGroupHeader: Bool = true
+
+    // Quick Notes
+    @Published var quickNotes: [QuickNote] = []
+    @Published var lastOpenedQuickNoteId: UUID?
+
+    // CSV kolonnevis-bygger
+    @Published var csvColumnBuilder: CSVColumnBuilderState?
+
+    // Context Bundles
+    @Published var contextBundles: [ContextBundle] = []
+    @Published var activeContextBundleId: UUID?
+
+    // Global toast (Kopiert!, Lagret! osv)
+    @Published var toastMessage: String?
+    private var toastDismissTask: Task<Void, Never>?
 
     var filteredClipboardEntries: [ClipboardEntry] {
         if clipboardSearchText.isEmpty { return clipboardEntries }
@@ -63,6 +89,7 @@ final class StashViewModel: ObservableObject {
         case screenshots
         case paths
         case sheets
+        case bundles
     }
 
     @Published var activeToolsTab: ToolsSubTab = .screenshots
@@ -96,7 +123,7 @@ final class StashViewModel: ObservableObject {
             switch activeToolsTab {
             case .screenshots:
                 filtered = filtered.filter { $0.isScreenshot }
-            case .paths, .sheets:
+            case .paths, .sheets, .bundles:
                 return []
             }
         }
@@ -163,6 +190,32 @@ final class StashViewModel: ObservableObject {
 
     init() {
         loadState()
+        observePersistenceNotifications()
+    }
+
+    private func observePersistenceNotifications() {
+        NotificationCenter.default.addObserver(
+            forName: PersistenceService.saveFailedNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            Task { @MainActor in
+                let detail = (note.userInfo?["error"] as? String) ?? "ukjent feil"
+                self?.errorMessage = "Kunne ikke lagre data: \(detail). Endringene dine er fortsatt i minnet \u{2014} prøv å lukke og åpne appen, eller sjekk diskplass."
+                self?.showError = true
+            }
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: PersistenceService.loadFailedNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            Task { @MainActor in
+                let source = (note.userInfo?["recoveredFrom"] as? String) ?? "backup"
+                self?.showToast("Gjenopprettet fra \(source)", duration: 3.0)
+            }
+        }
     }
 
     // MARK: - State Persistence
@@ -181,12 +234,21 @@ final class StashViewModel: ObservableObject {
             self.autoCleanupFilesDays = state.autoCleanupFilesDays
             self.autoCleanupClipboardDays = state.autoCleanupClipboardDays
             self.autoCleanupPathsDays = state.autoCleanupPathsDays
+            self.clipboardGroups = state.clipboardGroups
+            self.activeClipboardGroupId = state.activeClipboardGroupId
+            self.clipboardNewestOnTop = state.clipboardNewestOnTop
+            self.clipboardCopyBlankLines = state.clipboardCopyBlankLines
+            self.clipboardIncludeGroupHeader = state.clipboardIncludeGroupHeader
+            self.quickNotes = state.quickNotes
+            self.lastOpenedQuickNoteId = state.lastOpenedQuickNoteId
+            self.contextBundles = state.contextBundles
+            self.activeContextBundleId = state.activeContextBundleId
+            // Alle eksisterende grupper starter ekspandert, samt "Ingen gruppe" (nil).
+            self.expandedClipboardGroupIds = Set([nil] + state.clipboardGroups.map { Optional($0.id) })
 
             // Validate staged files still exist
             self.items = staging.validateItems(self.items)
         }
-
-        self.openAIKey = UserDefaults.standard.string(forKey: "openAIAPIKey") ?? ""
 
         performAutoCleanup()
 
@@ -233,7 +295,16 @@ final class StashViewModel: ObservableObject {
                 saveScreenshots: self.saveScreenshots,
                 autoCleanupFilesDays: self.autoCleanupFilesDays,
                 autoCleanupClipboardDays: self.autoCleanupClipboardDays,
-                autoCleanupPathsDays: self.autoCleanupPathsDays
+                autoCleanupPathsDays: self.autoCleanupPathsDays,
+                clipboardGroups: self.clipboardGroups,
+                activeClipboardGroupId: self.activeClipboardGroupId,
+                clipboardNewestOnTop: self.clipboardNewestOnTop,
+                clipboardCopyBlankLines: self.clipboardCopyBlankLines,
+                clipboardIncludeGroupHeader: self.clipboardIncludeGroupHeader,
+                quickNotes: self.quickNotes,
+                lastOpenedQuickNoteId: self.lastOpenedQuickNoteId,
+                contextBundles: self.contextBundles,
+                activeContextBundleId: self.activeContextBundleId
             )
             self.persistence.saveState(state)
         }
@@ -304,13 +375,8 @@ final class StashViewModel: ObservableObject {
             self.isImporting = false
 
             if !result.errors.isEmpty {
-                self.errorMessage = "Some files failed to import: \(result.errors.joined(separator: "; "))"
+                self.errorMessage = "Noen filer kunne ikke importeres: \(result.errors.joined(separator: "; "))"
                 self.showError = true
-                // Auto-dismiss after 5 seconds
-                Task {
-                    try? await Task.sleep(nanoseconds: 5_000_000_000)
-                    self.showError = false
-                }
             }
 
             self.scheduleSave()
@@ -540,18 +606,31 @@ final class StashViewModel: ObservableObject {
         // Don't add duplicates of the most recent entry
         if let last = clipboardEntries.first, last.text == text { return }
 
-        let entry = ClipboardEntry(text: text)
+        let entry = ClipboardEntry(text: text, groupId: activeClipboardGroupId)
         clipboardEntries.insert(entry, at: 0)
 
-        let limit = maxClipboardEntries > 0 ? maxClipboardEntries : 500
-        if clipboardEntries.count > limit {
-            clipboardEntries = Array(clipboardEntries.prefix(limit))
-        }
+        enforceClipboardLimit()
 
         if sheetsCollectorEnabled {
             addToSheetsCollector(text)
         }
 
+        scheduleSave()
+    }
+
+    /// Beskjærer clipboard-lista til maxClipboardEntries. Festede items teller ikke
+    /// mot grensen slik at brukeren ikke mister pinned entries når limit senkes.
+    private func enforceClipboardLimit() {
+        let limit = maxClipboardEntries > 0 ? maxClipboardEntries : 500
+        let pinned = clipboardEntries.filter { $0.isPinned }
+        let unpinned = clipboardEntries.filter { !$0.isPinned }
+        guard unpinned.count > limit else { return }
+        let trimmed = Array(unpinned.prefix(limit))
+        // Behold original rekkefølge: pinned + unpinned slik de lå (nyeste først i lagret array).
+        clipboardEntries = clipboardEntries.filter { entry in
+            entry.isPinned || trimmed.contains(where: { $0.id == entry.id })
+        }
+        _ = pinned
         scheduleSave()
     }
 
@@ -588,7 +667,41 @@ final class StashViewModel: ObservableObject {
         let selected = clipboardEntries.filter { selectedClipboardIds.contains($0.id) }
         guard !selected.isEmpty else { return }
 
-        let combined = selected.map { $0.text }.joined(separator: "\n\n")
+        // Separator: "blank lines" = antall tomme linjer mellom entries.
+        // 0 tomme linjer = "\n", 1 = "\n\n", 2 = "\n\n\n", osv.
+        let blanks = max(0, clipboardCopyBlankLines)
+        let separator = String(repeating: "\n", count: blanks + 1)
+
+        // Grupperer etter groupId slik at entries fra samme gruppe samles,
+        // og gruppenavnet legges øverst i CAPS (valgfritt).
+        let groupOrder: [UUID?] = {
+            var seen = Set<UUID?>()
+            var order: [UUID?] = []
+            for entry in selected {
+                if !seen.contains(entry.groupId) {
+                    seen.insert(entry.groupId)
+                    order.append(entry.groupId)
+                }
+            }
+            return order
+        }()
+
+        var blocks: [String] = []
+        for gid in groupOrder {
+            let itemsInGroup = selected.filter { $0.groupId == gid }
+            let texts = itemsInGroup.map { $0.text }
+            let body = texts.joined(separator: separator)
+
+            if clipboardIncludeGroupHeader, let gid = gid,
+               let group = clipboardGroups.first(where: { $0.id == gid }) {
+                let header = group.name.uppercased()
+                blocks.append(header + "\n" + body)
+            } else {
+                blocks.append(body)
+            }
+        }
+
+        let combined = blocks.joined(separator: separator)
         copyTextToPasteboard(combined)
         selectedClipboardIds.removeAll()
     }
@@ -659,6 +772,355 @@ final class StashViewModel: ObservableObject {
 
     func deselectAllClipboardEntries() {
         selectedClipboardIds.removeAll()
+    }
+
+    // MARK: - Clipboard Groups
+
+    @discardableResult
+    func createClipboardGroup(name: String) -> ClipboardGroup {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let finalName = trimmed.isEmpty ? "Ny gruppe" : trimmed
+        let nextIndex = (clipboardGroups.map { $0.sortIndex }.max() ?? -1) + 1
+        let group = ClipboardGroup(name: finalName, sortIndex: nextIndex)
+        clipboardGroups.append(group)
+        expandedClipboardGroupIds.insert(group.id)
+        scheduleSave()
+        return group
+    }
+
+    func renameClipboardGroup(id: UUID, name: String) {
+        guard let idx = clipboardGroups.firstIndex(where: { $0.id == id }) else { return }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        clipboardGroups[idx].name = trimmed
+        scheduleSave()
+    }
+
+    func deleteClipboardGroup(id: UUID) {
+        // Items i gruppen blir ungrouped, ikke slettet.
+        for i in clipboardEntries.indices {
+            if clipboardEntries[i].groupId == id {
+                clipboardEntries[i].groupId = nil
+            }
+        }
+        clipboardGroups.removeAll { $0.id == id }
+        if activeClipboardGroupId == id {
+            activeClipboardGroupId = nil
+        }
+        expandedClipboardGroupIds.remove(id)
+        scheduleSave()
+    }
+
+    /// Setter aktiv mål-gruppe. Klikker du samme gruppe igjen, faller du tilbake til
+    /// "Ingen gruppe" (nil). For å markere "Ingen gruppe" som aktiv eksplisitt,
+    /// kall med `id: nil` direkte fra Ingen gruppe-headeren.
+    func setActiveClipboardGroup(_ id: UUID?) {
+        activeClipboardGroupId = id
+        scheduleSave()
+    }
+
+    func moveSelectedClipboardEntries(toGroup groupId: UUID?) {
+        guard !selectedClipboardIds.isEmpty else { return }
+        for i in clipboardEntries.indices where selectedClipboardIds.contains(clipboardEntries[i].id) {
+            clipboardEntries[i].groupId = groupId
+        }
+        selectedClipboardIds.removeAll()
+        scheduleSave()
+    }
+
+    func toggleClipboardGroupExpanded(_ id: UUID?) {
+        if expandedClipboardGroupIds.contains(id) {
+            expandedClipboardGroupIds.remove(id)
+        } else {
+            expandedClipboardGroupIds.insert(id)
+        }
+    }
+
+    func isClipboardGroupExpanded(_ id: UUID?) -> Bool {
+        expandedClipboardGroupIds.contains(id)
+    }
+
+    // MARK: - CSV Column Builder
+
+    func startCSVColumnBuilder() {
+        csvColumnBuilder = CSVColumnBuilderState(columns: [[]], currentColumnIndex: 0)
+    }
+
+    func cancelCSVColumnBuilder() {
+        csvColumnBuilder = nil
+    }
+
+    func appendSelectedToCurrentCSVColumn() {
+        guard var builder = csvColumnBuilder else { return }
+        let selected = clipboardEntries.filter { selectedClipboardIds.contains($0.id) }
+        guard !selected.isEmpty else { return }
+
+        // Bevar rekkefølgen items vises i (ikke i valg-rekkefølge)
+        let orderedTexts = selected.map { $0.text }
+        builder.columns[builder.currentColumnIndex].append(contentsOf: orderedTexts)
+        csvColumnBuilder = builder
+        selectedClipboardIds.removeAll()
+    }
+
+    func startNextCSVColumn() {
+        guard var builder = csvColumnBuilder else { return }
+        // Bare gå videre hvis gjeldende kolonne har innhold
+        guard !builder.columns[builder.currentColumnIndex].isEmpty else { return }
+        builder.columns.append([])
+        builder.currentColumnIndex = builder.columns.count - 1
+        csvColumnBuilder = builder
+    }
+
+    func finishCSVColumnBuilderAndExport() {
+        guard let builder = csvColumnBuilder else { return }
+        let nonEmptyColumns = builder.columns.filter { !$0.isEmpty }
+        guard !nonEmptyColumns.isEmpty else {
+            csvColumnBuilder = nil
+            return
+        }
+
+        let rowCount = nonEmptyColumns.map { $0.count }.max() ?? 0
+
+        func escape(_ field: String) -> String {
+            if field.contains(",") || field.contains("\"") || field.contains("\n") {
+                return "\"" + field.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+            }
+            return field
+        }
+
+        // Header: Kolonne A, Kolonne B, ...
+        let headers = (0..<nonEmptyColumns.count).map { columnLetter(for: $0) }
+        var csv = headers.map { "Kolonne \($0)" }.map(escape).joined(separator: ",") + "\n"
+
+        for row in 0..<rowCount {
+            let cells = nonEmptyColumns.map { col -> String in
+                row < col.count ? col[row] : ""
+            }
+            csv += cells.map(escape).joined(separator: ",") + "\n"
+        }
+
+        let savePanel = NSSavePanel()
+        savePanel.title = "Eksporter CSV med kolonner"
+        savePanel.nameFieldStringValue = "utklipp-kolonner.csv"
+        savePanel.allowedContentTypes = [.commaSeparatedText]
+        savePanel.canCreateDirectories = true
+        savePanel.level = .floating
+
+        savePanel.begin { response in
+            if response == .OK, let url = savePanel.url {
+                do {
+                    try csv.write(to: url, atomically: true, encoding: .utf8)
+                    Task { @MainActor in
+                        self.csvColumnBuilder = nil
+                    }
+                } catch {
+                    Task { @MainActor in
+                        self.errorMessage = "Kunne ikke lagre filen: \(error.localizedDescription)"
+                        self.showError = true
+                    }
+                }
+            }
+        }
+    }
+
+    func columnLetter(for index: Int) -> String {
+        // 0 -> A, 25 -> Z, 26 -> AA, ...
+        var n = index
+        var result = ""
+        repeat {
+            let rem = n % 26
+            result = String(UnicodeScalar(65 + rem)!) + result
+            n = n / 26 - 1
+        } while n >= 0
+        return result
+    }
+
+    // MARK: - Quick Notes
+
+    @discardableResult
+    func createQuickNote() -> QuickNote {
+        let note = QuickNote()
+        quickNotes.insert(note, at: 0)
+        lastOpenedQuickNoteId = note.id
+        scheduleSave()
+        return note
+    }
+
+    func deleteQuickNote(id: UUID) {
+        quickNotes.removeAll { $0.id == id }
+        if lastOpenedQuickNoteId == id {
+            lastOpenedQuickNoteId = quickNotes.first?.id
+        }
+        scheduleSave()
+    }
+
+    func updateQuickNote(id: UUID, title: String? = nil, body: String? = nil) {
+        guard let idx = quickNotes.firstIndex(where: { $0.id == id }) else { return }
+        if let title = title { quickNotes[idx].title = title }
+        if let body = body { quickNotes[idx].body = body }
+        quickNotes[idx].updatedAt = Date()
+        scheduleSave()
+    }
+
+    func copyQuickNote(id: UUID) {
+        guard let note = quickNotes.first(where: { $0.id == id }) else { return }
+        let combined: String
+        let t = note.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if t.isEmpty {
+            combined = note.body
+        } else {
+            combined = t + "\n\n" + note.body
+        }
+        copyTextToPasteboard(combined)
+    }
+
+    // MARK: - Context Bundles
+
+    var activeContextBundle: ContextBundle? {
+        guard let id = activeContextBundleId else { return nil }
+        return contextBundles.first(where: { $0.id == id })
+    }
+
+    @discardableResult
+    func createContextBundle(name: String) -> ContextBundle {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let finalName = trimmed.isEmpty ? "Ny bundle" : trimmed
+        let nextIndex = (contextBundles.map { $0.sortIndex }.max() ?? -1) + 1
+        let bundle = ContextBundle(name: finalName, sortIndex: nextIndex)
+        contextBundles.append(bundle)
+        activeContextBundleId = bundle.id
+        scheduleSave()
+        return bundle
+    }
+
+    func renameContextBundle(id: UUID, name: String) {
+        guard let idx = contextBundles.firstIndex(where: { $0.id == id }) else { return }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        contextBundles[idx].name = trimmed
+        scheduleSave()
+    }
+
+    func deleteContextBundle(id: UUID) {
+        contextBundles.removeAll { $0.id == id }
+        if activeContextBundleId == id {
+            activeContextBundleId = contextBundles.first?.id
+        }
+        scheduleSave()
+    }
+
+    func setActiveContextBundle(_ id: UUID?) {
+        activeContextBundleId = id
+        scheduleSave()
+    }
+
+    func addFileToBundle(bundleId: UUID, stashItemId: UUID) {
+        guard let idx = contextBundles.firstIndex(where: { $0.id == bundleId }) else { return }
+        // Unngå duplikat — samme stashItemId i samme bundle ignoreres
+        let alreadyIn = contextBundles[idx].items.contains { item in
+            if case .file(_, let sid) = item, sid == stashItemId { return true }
+            return false
+        }
+        if alreadyIn { return }
+        contextBundles[idx].items.append(.file(id: UUID(), stashItemId: stashItemId))
+        scheduleSave()
+    }
+
+    @discardableResult
+    func addTextToBundle(bundleId: UUID, title: String = "", body: String = "") -> UUID? {
+        guard let idx = contextBundles.firstIndex(where: { $0.id == bundleId }) else { return nil }
+        let newId = UUID()
+        contextBundles[idx].items.append(.text(id: newId, title: title, body: body))
+        scheduleSave()
+        return newId
+    }
+
+    func updateBundleTextItem(bundleId: UUID, itemId: UUID, title: String? = nil, body: String? = nil) {
+        guard let bIdx = contextBundles.firstIndex(where: { $0.id == bundleId }) else { return }
+        guard let iIdx = contextBundles[bIdx].items.firstIndex(where: { $0.id == itemId }) else { return }
+        if case .text(let id, let oldTitle, let oldBody) = contextBundles[bIdx].items[iIdx] {
+            contextBundles[bIdx].items[iIdx] = .text(
+                id: id,
+                title: title ?? oldTitle,
+                body: body ?? oldBody
+            )
+            scheduleSave()
+        }
+    }
+
+    func removeBundleItem(bundleId: UUID, itemId: UUID) {
+        guard let idx = contextBundles.firstIndex(where: { $0.id == bundleId }) else { return }
+        contextBundles[idx].items.removeAll { $0.id == itemId }
+        scheduleSave()
+    }
+
+    /// Resolver alle .file-items i bundlen til faktiske URLs på disk.
+    /// Hopper over items hvor StashItem ikke lenger finnes (slettet etter at det ble lagt til).
+    func bundleFileURLs(bundleId: UUID) -> [URL] {
+        guard let bundle = contextBundles.first(where: { $0.id == bundleId }) else { return [] }
+        var urls: [URL] = []
+        for item in bundle.items {
+            if case .file(_, let sid) = item,
+               let stashItem = items.first(where: { $0.id == sid }) {
+                urls.append(stashItem.stagedURL)
+            }
+        }
+        return urls
+    }
+
+    /// Bygger en strukturert tekstdump av bundlen, klar til å limes inn i en chat.
+    func bundleAsCombinedText(bundleId: UUID) -> String {
+        guard let bundle = contextBundles.first(where: { $0.id == bundleId }) else { return "" }
+
+        var sections: [String] = []
+        sections.append("## \(bundle.name.uppercased())")
+
+        let textItems: [(String, String)] = bundle.items.compactMap { item in
+            if case .text(_, let title, let body) = item {
+                return (title, body)
+            }
+            return nil
+        }
+        if !textItems.isEmpty {
+            var snippetBlock = "### Snippets\n"
+            for (title, body) in textItems {
+                let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !t.isEmpty {
+                    snippetBlock += "\n**\(t)**\n\(body)\n"
+                } else {
+                    snippetBlock += "\n\(body)\n"
+                }
+            }
+            sections.append(snippetBlock)
+        }
+
+        let fileNames: [String] = bundle.items.compactMap { item in
+            if case .file(_, let sid) = item,
+               let stashItem = items.first(where: { $0.id == sid }) {
+                return stashItem.fileName
+            }
+            return nil
+        }
+        if !fileNames.isEmpty {
+            var fileBlock = "### Vedlagte filer\n"
+            for name in fileNames {
+                fileBlock += "- \(name)\n"
+            }
+            sections.append(fileBlock)
+        }
+
+        return sections.joined(separator: "\n\n")
+    }
+
+    func copyBundleAsText(bundleId: UUID) {
+        let text = bundleAsCombinedText(bundleId: bundleId)
+        guard !text.isEmpty else { return }
+        copyTextToPasteboard(text)
+        // copyTextToPasteboard viser allerede "Kopiert!"-toast.
+        // Overstyr med en mer spesifikk melding:
+        if let bundle = contextBundles.first(where: { $0.id == bundleId }) {
+            showToast("\(bundle.name) kopiert!")
+        }
     }
 
     // MARK: - Sheets Collector
@@ -762,68 +1224,19 @@ final class StashViewModel: ObservableObject {
             row.map { csvEscape($0) }.joined(separator: ",")
         }.joined(separator: "\n")
 
-        if !openAIKey.isEmpty {
-            let preview = allRows.prefix(10).map { $0.joined(separator: " | ") }.joined(separator: "\n")
-            suggestFilename(for: preview) { suggested in
-                DispatchQueue.main.async {
-                    self.showSavePanel(csv: csv, defaultName: suggested ?? "sheets-export")
-                }
-            }
-        } else {
-            showSavePanel(csv: csv, defaultName: "sheets-export")
-        }
-    }
-
-    private func showSavePanel(csv: String, defaultName: String) {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.commaSeparatedText]
-        panel.nameFieldStringValue = defaultName + ".csv"
+        panel.nameFieldStringValue = "tabell-eksport.csv"
         panel.canCreateDirectories = true
 
         if panel.runModal() == .OK, let url = panel.url {
-            try? csv.write(to: url, atomically: true, encoding: .utf8)
-        }
-    }
-
-    func suggestFilename(for content: String, completion: @escaping (String?) -> Void) {
-        guard !openAIKey.isEmpty else { completion(nil); return }
-
-        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.addValue("Bearer \(openAIKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 8
-
-        let prompt = "Based on this spreadsheet data, suggest a short descriptive filename (2-4 words, lowercase, separated by hyphens, no file extension). Only respond with the filename, nothing else.\n\nData:\n\(content.prefix(500))"
-
-        let body: [String: Any] = [
-            "model": "gpt-4o-mini",
-            "messages": [["role": "user", "content": prompt]],
-            "max_tokens": 20,
-            "temperature": 0.3
-        ]
-
-        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            guard let data = data,
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let choices = json["choices"] as? [[String: Any]],
-                  let message = choices.first?["message"] as? [String: Any],
-                  let text = message["content"] as? String else {
-                completion(nil)
-                return
+            do {
+                try csv.write(to: url, atomically: true, encoding: .utf8)
+            } catch {
+                errorMessage = "Kunne ikke lagre CSV: \(error.localizedDescription)"
+                showError = true
             }
-
-            let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                .replacingOccurrences(of: " ", with: "-")
-                .replacingOccurrences(of: ".csv", with: "")
-                .lowercased()
-                .filter { $0.isLetter || $0.isNumber || $0 == "-" }
-
-            completion(cleaned.isEmpty ? nil : String(cleaned.prefix(40)))
-        }.resume()
+        }
     }
 
     var sheetsRowCount: Int {
@@ -836,6 +1249,18 @@ final class StashViewModel: ObservableObject {
         }
     }
 
+    func showToast(_ message: String, duration: TimeInterval = 1.4) {
+        toastMessage = message
+        toastDismissTask?.cancel()
+        toastDismissTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                self?.toastMessage = nil
+            }
+        }
+    }
+
     private func copyTextToPasteboard(_ text: String) {
         // Temporarily stop watching so we don't re-capture our own paste
         let wasWatching = clipboardWatchEnabled
@@ -843,6 +1268,8 @@ final class StashViewModel: ObservableObject {
 
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+
+        showToast("Kopiert!")
 
         // Resume after a short delay
         if wasWatching {

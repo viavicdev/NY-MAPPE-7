@@ -5,11 +5,38 @@ set -e
 # Ny Mappe (7) — Universal Build Script
 # Builds for both Intel (x86_64) and Apple Silicon (arm64)
 # Requires: macOS 13+ with Xcode Command Line Tools (xcode-select --install)
+#
+# Usage:
+#   ./build.sh              — Build, install, launch (no signing)
+#   ./build.sh --sign       — Build + codesign + install + launch
+#   ./build.sh --release    — Build + codesign + notarize + DMG
 # ─────────────────────────────────────────────
 
 APP_NAME="Ny Mappe (7) v2"
 EXECUTABLE="NyMappa7"
 MIN_MACOS="13.0"
+VERSION="4.4"
+
+# ── Code Signing & Notarization ──────────────────────────
+# Fill in these values from your Apple Developer account:
+#   SIGNING_IDENTITY: Run `security find-identity -v -p codesigning` to list yours
+#   APPLE_ID:         Your Apple ID email
+#   TEAM_ID:          Your 10-character team ID (developer.apple.com → Membership)
+#   APP_PASSWORD:     App-specific password from appleid.apple.com
+SIGNING_IDENTITY="${SIGNING_IDENTITY:-}"    # e.g. "Developer ID Application: Victoria Haugnes (XXXXXXXXXX)"
+APPLE_ID="${APPLE_ID:-}"                    # e.g. "your@email.com"
+TEAM_ID="${TEAM_ID:-}"                      # e.g. "XXXXXXXXXX"
+APP_PASSWORD="${APP_PASSWORD:-}"            # App-specific password for notarytool
+
+# Parse flags
+DO_SIGN=false
+DO_RELEASE=false
+for arg in "$@"; do
+    case "$arg" in
+        --sign)    DO_SIGN=true ;;
+        --release) DO_SIGN=true; DO_RELEASE=true ;;
+    esac
+done
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SRC_DIR="$SCRIPT_DIR/Ny Mappe 7"
@@ -23,6 +50,12 @@ SOURCES=(
     "$SRC_DIR/Models/StashItem.swift"
     "$SRC_DIR/Models/StashSet.swift"
     "$SRC_DIR/Models/ClipboardEntry.swift"
+    "$SRC_DIR/Models/ClipboardGroup.swift"
+    "$SRC_DIR/Models/QuickNote.swift"
+    "$SRC_DIR/Models/CSVColumnBuilderState.swift"
+    "$SRC_DIR/Models/Date+TimeAgo.swift"
+    "$SRC_DIR/Models/BundleItem.swift"
+    "$SRC_DIR/Models/ContextBundle.swift"
     "$SRC_DIR/Models/PathEntry.swift"
     "$SRC_DIR/ViewModels/StashViewModel.swift"
     "$SRC_DIR/Services/StagingService.swift"
@@ -31,6 +64,7 @@ SOURCES=(
     "$SRC_DIR/Services/ScreenshotWatcher.swift"
     "$SRC_DIR/Services/ClipboardWatcher.swift"
     "$SRC_DIR/Views/ContentView.swift"
+    "$SRC_DIR/Views/QuickNoteView.swift"
     "$SRC_DIR/Views/CardsGridView.swift"
     "$SRC_DIR/Views/Components/TypeBadge.swift"
     "$SRC_DIR/Views/Components/DragAllButton.swift"
@@ -46,6 +80,10 @@ SOURCES=(
     "$SRC_DIR/Views/Components/DragSourceView.swift"
     "$SRC_DIR/Views/Components/SetSelectorView.swift"
     "$SRC_DIR/Views/Components/ClipboardListView.swift"
+    "$SRC_DIR/Views/Components/ScreenshotLightGridView.swift"
+    "$SRC_DIR/Views/Components/ToastView.swift"
+    "$SRC_DIR/Views/Components/AppIcon.swift"
+    "$SRC_DIR/Views/Components/ContextBundlesView.swift"
     "$SRC_DIR/Views/Components/BatchRenameSheet.swift"
     "$SRC_DIR/Views/Components/PathListView.swift"
     "$SRC_DIR/Views/Components/SettingsSheet.swift"
@@ -104,8 +142,14 @@ elif [ -f "$SCRIPT_DIR/../Ny Mappe (7).app/Contents/Resources/AppIcon.icns" ]; t
     cp "$SCRIPT_DIR/../Ny Mappe (7).app/Contents/Resources/AppIcon.icns" "$APP_DIR/Contents/Resources/"
 fi
 
+# Copy custom SVG icons into the bundle so AppIcon view can load them at runtime
+if [ -d "$SRC_DIR/Resources/Icons" ]; then
+    mkdir -p "$APP_DIR/Contents/Resources/Icons"
+    cp "$SRC_DIR/Resources/Icons/"*.svg "$APP_DIR/Contents/Resources/Icons/" 2>/dev/null || true
+fi
+
 # Create Info.plist
-cat > "$APP_DIR/Contents/Info.plist" << 'PLIST'
+cat > "$APP_DIR/Contents/Info.plist" << PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -117,9 +161,9 @@ cat > "$APP_DIR/Contents/Info.plist" << 'PLIST'
     <key>CFBundleIdentifier</key>
     <string>no.klippegeni.nymappe7</string>
     <key>CFBundleVersion</key>
-    <string>3.3</string>
+    <string>${VERSION}</string>
     <key>CFBundleShortVersionString</key>
-    <string>3.3</string>
+    <string>${VERSION}</string>
     <key>CFBundleExecutable</key>
     <string>NyMappa7</string>
     <key>CFBundlePackageType</key>
@@ -142,6 +186,78 @@ PLIST
 ARCHS=$(lipo -archs "$APP_DIR/Contents/MacOS/${EXECUTABLE}")
 SIZE=$(du -sh "$APP_DIR" | cut -f1)
 
+# ── Code Signing ──────────────────────────────────────────
+if [ "$DO_SIGN" = true ]; then
+    if [ -z "$SIGNING_IDENTITY" ]; then
+        echo ""
+        echo "⚠️  SIGNING_IDENTITY is not set. Skipping code signing."
+        echo "   Run: security find-identity -v -p codesigning"
+        echo "   Then set: export SIGNING_IDENTITY=\"Developer ID Application: ...\""
+        DO_SIGN=false
+        DO_RELEASE=false
+    else
+        echo ""
+        echo "🔏 Code signing with: $SIGNING_IDENTITY"
+        codesign --force --deep --options runtime \
+            --sign "$SIGNING_IDENTITY" \
+            "$APP_DIR"
+        echo "   ✓ Signed"
+
+        # Verify signature
+        codesign --verify --deep --strict "$APP_DIR"
+        echo "   ✓ Signature verified"
+    fi
+fi
+
+# ── Notarization & DMG (--release only) ───────────────────
+if [ "$DO_RELEASE" = true ]; then
+    if [ -z "$APPLE_ID" ] || [ -z "$TEAM_ID" ] || [ -z "$APP_PASSWORD" ]; then
+        echo ""
+        echo "⚠️  Missing notarization credentials. Set these env vars:"
+        echo "   APPLE_ID, TEAM_ID, APP_PASSWORD"
+        echo "   Skipping notarization."
+    else
+        DMG_NAME="NyMappe7-v${VERSION}.dmg"
+        DMG_PATH="$SCRIPT_DIR/$DMG_NAME"
+
+        echo ""
+        echo "📀 Creating DMG: $DMG_NAME"
+        rm -f "$DMG_PATH"
+        hdiutil create -volname "Ny Mappe (7)" \
+            -srcfolder "$APP_DIR" \
+            -ov -format UDZO \
+            "$DMG_PATH"
+
+        # Sign the DMG too
+        codesign --force --sign "$SIGNING_IDENTITY" "$DMG_PATH"
+
+        echo ""
+        echo "📤 Submitting for notarization (this may take a few minutes)..."
+        xcrun notarytool submit "$DMG_PATH" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$TEAM_ID" \
+            --password "$APP_PASSWORD" \
+            --wait
+
+        echo ""
+        echo "📎 Stapling notarization ticket to DMG..."
+        xcrun stapler staple "$DMG_PATH"
+
+        echo ""
+        echo "✅ Release build complete!"
+        echo "   DMG:            $DMG_PATH"
+        echo "   Architectures:  $ARCHS"
+        echo "   Size:           $(du -sh "$DMG_PATH" | cut -f1)"
+        echo ""
+        echo "🎉 Ready to distribute! Users can open $DMG_NAME without Gatekeeper warnings."
+
+        # Cleanup build artifacts
+        rm -rf "$BUILD_DIR"
+        exit 0
+    fi
+fi
+
+# ── Local install (default / --sign without --release) ────
 INSTALL_DIR="/Applications/Ny Mappe (7).app"
 
 # Kill running instance before replacing
@@ -154,8 +270,12 @@ cp -r "$APP_DIR" "$INSTALL_DIR"
 echo ""
 echo "✅ Build complete!"
 echo "   App:           $INSTALL_DIR"
+echo "   Version:       $VERSION"
 echo "   Architectures: $ARCHS"
 echo "   Size:          $SIZE"
+if [ "$DO_SIGN" = true ]; then
+    echo "   Signed:        ✓"
+fi
 echo ""
 
 # Auto-launch

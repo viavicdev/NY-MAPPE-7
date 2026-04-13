@@ -5,17 +5,34 @@ struct ClipboardEntry: Identifiable, Codable, Hashable {
     let text: String
     let dateCopied: Date
     var isPinned: Bool
+    var groupId: UUID?
 
     init(
         id: UUID = UUID(),
         text: String,
         dateCopied: Date = Date(),
-        isPinned: Bool = false
+        isPinned: Bool = false,
+        groupId: UUID? = nil
     ) {
         self.id = id
         self.text = text
         self.dateCopied = dateCopied
         self.isPinned = isPinned
+        self.groupId = groupId
+    }
+
+    // Bakoverkompatibel decoding: eldre state-filer har ikke groupId.
+    enum CodingKeys: String, CodingKey {
+        case id, text, dateCopied, isPinned, groupId
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        text = try container.decode(String.self, forKey: .text)
+        dateCopied = try container.decode(Date.self, forKey: .dateCopied)
+        isPinned = try container.decode(Bool.self, forKey: .isPinned)
+        groupId = try container.decodeIfPresent(UUID.self, forKey: .groupId)
     }
 
     var preview: String {
@@ -27,18 +44,7 @@ struct ClipboardEntry: Identifiable, Codable, Hashable {
     }
 
     var timeAgo: String {
-        let interval = Date().timeIntervalSince(dateCopied)
-        if interval < 60 { return "n\u{00E5}" }
-        if interval < 3600 {
-            let mins = Int(interval / 60)
-            return "\(mins) min siden"
-        }
-        if interval < 86400 {
-            let hours = Int(interval / 3600)
-            return "\(hours)t siden"
-        }
-        let days = Int(interval / 86400)
-        return "\(days)d siden"
+        dateCopied.timeAgoNorwegian
     }
 
     var formattedDate: String {

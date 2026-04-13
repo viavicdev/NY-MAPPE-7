@@ -13,6 +13,15 @@ struct AppState: Codable {
     var autoCleanupFilesDays: Int?
     var autoCleanupClipboardDays: Int?
     var autoCleanupPathsDays: Int?
+    var clipboardGroups: [ClipboardGroup]
+    var activeClipboardGroupId: UUID?
+    var clipboardNewestOnTop: Bool
+    var clipboardCopyBlankLines: Int
+    var clipboardIncludeGroupHeader: Bool
+    var quickNotes: [QuickNote]
+    var lastOpenedQuickNoteId: UUID?
+    var contextBundles: [ContextBundle]
+    var activeContextBundleId: UUID?
 
     init(
         sets: [StashSet] = [],
@@ -26,7 +35,16 @@ struct AppState: Codable {
         saveScreenshots: Bool = false,
         autoCleanupFilesDays: Int? = nil,
         autoCleanupClipboardDays: Int? = nil,
-        autoCleanupPathsDays: Int? = nil
+        autoCleanupPathsDays: Int? = nil,
+        clipboardGroups: [ClipboardGroup] = [],
+        activeClipboardGroupId: UUID? = nil,
+        clipboardNewestOnTop: Bool = true,
+        clipboardCopyBlankLines: Int = 1,
+        clipboardIncludeGroupHeader: Bool = true,
+        quickNotes: [QuickNote] = [],
+        lastOpenedQuickNoteId: UUID? = nil,
+        contextBundles: [ContextBundle] = [],
+        activeContextBundleId: UUID? = nil
     ) {
         self.sets = sets
         self.items = items
@@ -40,6 +58,15 @@ struct AppState: Codable {
         self.autoCleanupFilesDays = autoCleanupFilesDays
         self.autoCleanupClipboardDays = autoCleanupClipboardDays
         self.autoCleanupPathsDays = autoCleanupPathsDays
+        self.clipboardGroups = clipboardGroups
+        self.activeClipboardGroupId = activeClipboardGroupId
+        self.clipboardNewestOnTop = clipboardNewestOnTop
+        self.clipboardCopyBlankLines = clipboardCopyBlankLines
+        self.clipboardIncludeGroupHeader = clipboardIncludeGroupHeader
+        self.quickNotes = quickNotes
+        self.lastOpenedQuickNoteId = lastOpenedQuickNoteId
+        self.contextBundles = contextBundles
+        self.activeContextBundleId = activeContextBundleId
     }
 
     // Support loading old state files that may use the old key name
@@ -47,6 +74,10 @@ struct AppState: Codable {
         case sets, items, activeSetId, alwaysOnTop, sortOption, filterOption, clipboardEntries, pathEntries
         case saveScreenshots = "screenshotWatchEnabled"
         case autoCleanupFilesDays, autoCleanupClipboardDays, autoCleanupPathsDays
+        case clipboardGroups, activeClipboardGroupId, clipboardNewestOnTop
+        case clipboardCopyBlankLines, clipboardIncludeGroupHeader
+        case quickNotes, lastOpenedQuickNoteId
+        case contextBundles, activeContextBundleId
     }
 
     init(from decoder: Decoder) throws {
@@ -63,5 +94,14 @@ struct AppState: Codable {
         autoCleanupFilesDays = try container.decodeIfPresent(Int.self, forKey: .autoCleanupFilesDays)
         autoCleanupClipboardDays = try container.decodeIfPresent(Int.self, forKey: .autoCleanupClipboardDays)
         autoCleanupPathsDays = try container.decodeIfPresent(Int.self, forKey: .autoCleanupPathsDays)
+        clipboardGroups = try container.decodeIfPresent([ClipboardGroup].self, forKey: .clipboardGroups) ?? []
+        activeClipboardGroupId = try container.decodeIfPresent(UUID.self, forKey: .activeClipboardGroupId)
+        clipboardNewestOnTop = try container.decodeIfPresent(Bool.self, forKey: .clipboardNewestOnTop) ?? true
+        clipboardCopyBlankLines = try container.decodeIfPresent(Int.self, forKey: .clipboardCopyBlankLines) ?? 1
+        clipboardIncludeGroupHeader = try container.decodeIfPresent(Bool.self, forKey: .clipboardIncludeGroupHeader) ?? true
+        quickNotes = try container.decodeIfPresent([QuickNote].self, forKey: .quickNotes) ?? []
+        lastOpenedQuickNoteId = try container.decodeIfPresent(UUID.self, forKey: .lastOpenedQuickNoteId)
+        contextBundles = try container.decodeIfPresent([ContextBundle].self, forKey: .contextBundles) ?? []
+        activeContextBundleId = try container.decodeIfPresent(UUID.self, forKey: .activeContextBundleId)
     }
 }

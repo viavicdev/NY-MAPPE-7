@@ -27,7 +27,7 @@ struct SheetsCollectorView: View {
                 .font(.system(size: 11, weight: .medium))
                 .foregroundColor(Design.accent)
 
-            Text("Sheets")
+            Text("Tabell")
                 .font(.system(size: 12, weight: .bold, design: .rounded))
                 .foregroundColor(Design.primaryText)
 
@@ -200,17 +200,6 @@ struct SheetsCollectorView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if !viewModel.openAIKey.isEmpty {
-                HStack(alignment: .top, spacing: 6) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 10))
-                        .foregroundColor(Design.accent)
-                    Text("AI-filnavn er aktivert \u{2014} eksporterte filer f\u{00E5}r automatisk forslag til navn.")
-                        .font(.system(size: 9, design: .rounded))
-                        .foregroundColor(Design.accent.opacity(0.7))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
         }
         .padding(16)
         .frame(width: 280)

@@ -8,15 +8,17 @@ struct ToolsTabView: View {
         case .screenshots: return viewModel.screenshotCount
         case .paths: return viewModel.pathCount
         case .sheets: return viewModel.sheetsRowCount
+        case .bundles: return viewModel.contextBundles.count
         }
     }
 
     private var activeSubLabel: String {
         let c = activeSubCount
         switch viewModel.activeToolsTab {
-        case .screenshots: return "\(c) skjermbilder"
-        case .paths: return "\(c) paths"
+        case .screenshots: return "\(c) skjermbilde"
+        case .paths: return "\(c) filsti"
         case .sheets: return "\(c) rader"
+        case .bundles: return "\(c) bundle\(c == 1 ? "" : "s")"
         }
     }
 
@@ -47,22 +49,32 @@ struct ToolsTabView: View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 subTabButton(
-                    title: "Skjermbilder",
+                    title: "Skjermbilde",
                     icon: "camera.viewfinder",
+                    customIcon: "skjermbilde",
                     count: viewModel.screenshotCount,
                     tab: .screenshots
                 )
                 subTabButton(
-                    title: "Paths",
+                    title: "Filsti",
                     icon: "folder",
+                    customIcon: "filsti",
                     count: viewModel.pathCount,
                     tab: .paths
                 )
                 subTabButton(
-                    title: "Sheets",
+                    title: "Tabell",
                     icon: "tablecells",
+                    customIcon: "tabell",
                     count: viewModel.sheetsRowCount,
                     tab: .sheets
+                )
+                subTabButton(
+                    title: "Bundles",
+                    icon: "shippingbox",
+                    customIcon: nil,
+                    count: viewModel.contextBundles.count,
+                    tab: .bundles
                 )
             }
             .padding(.horizontal, 8)
@@ -74,7 +86,7 @@ struct ToolsTabView: View {
         .background(Design.headerSurface.opacity(0.5))
     }
 
-    private func subTabButton(title: String, icon: String, count: Int, tab: StashViewModel.ToolsSubTab) -> some View {
+    private func subTabButton(title: String, icon: String, customIcon: String? = nil, count: Int, tab: StashViewModel.ToolsSubTab) -> some View {
         let isActive = viewModel.activeToolsTab == tab
         return Button(action: {
             withAnimation(.easeInOut(duration: 0.15)) {
@@ -82,9 +94,14 @@ struct ToolsTabView: View {
             }
         }) {
             VStack(spacing: 0) {
-                HStack(spacing: 3) {
-                    Image(systemName: icon)
-                        .font(.system(size: 9, weight: isActive ? .medium : .regular))
+                HStack(spacing: 4) {
+                    if let customIcon = customIcon {
+                        AppIcon(customIcon)
+                            .frame(width: 11, height: 11)
+                    } else {
+                        Image(systemName: icon)
+                            .font(.system(size: 9, weight: isActive ? .medium : .regular))
+                    }
                     Text(title)
                         .font(.system(size: 10, weight: isActive ? .semibold : .medium, design: .rounded))
                     if count > 0 {
@@ -121,6 +138,8 @@ struct ToolsTabView: View {
             PathListView(viewModel: viewModel)
         case .sheets:
             sheetsContent
+        case .bundles:
+            ContextBundlesView(viewModel: viewModel)
         }
     }
 
@@ -131,6 +150,10 @@ struct ToolsTabView: View {
         if viewModel.currentItems.isEmpty && !viewModel.isImporting {
             EmptyStateView(isScreenshotTab: true)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        } else if viewModel.isLightVersion {
+            // Tettere 3-kolonne-grid i enkel modus, med lightbox ved tap
+            ScreenshotLightGridView(viewModel: viewModel)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             CardsGridView(viewModel: viewModel)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

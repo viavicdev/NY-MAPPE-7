@@ -8,6 +8,9 @@ struct SettingsSheet: View {
     private let clipLimits = [0, 50, 100, 200, 500, 1000]
     private let dayOptions: [Int?] = [nil, 7, 14, 30, 60, 90]
 
+    @State private var clipboardSectionExpanded = false
+    @State private var cleanupSectionExpanded = false
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -17,7 +20,6 @@ struct SettingsSheet: View {
                     clipboardSection
                     screenshotSection
                     cleanupSection
-                    aiSection
                     shortcutsSection
                 }
                 .padding(16)
@@ -57,7 +59,7 @@ struct SettingsSheet: View {
                 Text("Ny Mappe (7)")
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundColor(Design.primaryText)
-                Text("v2.0")
+                Text("v4.4")
                     .font(.system(size: 9, weight: .medium, design: .monospaced))
                     .foregroundColor(Design.subtleText.opacity(0.5))
                     .padding(.horizontal, 5)
@@ -113,43 +115,110 @@ struct SettingsSheet: View {
     // MARK: - Clipboard
 
     private var clipboardSection: some View {
-        settingsGroup(title: "Utklipp", icon: "doc.on.clipboard") {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Maks antall utklipp")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundColor(Design.primaryText)
+        collapsibleSettingsGroup(
+            title: "Utklipp",
+            icon: "doc.on.clipboard",
+            isExpanded: $clipboardSectionExpanded
+        ) {
+            VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Maks antall utklipp")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundColor(Design.primaryText)
 
-                HStack(spacing: 4) {
-                    ForEach(clipLimits, id: \.self) { limit in
-                        Button(action: {
-                            viewModel.maxClipboardEntries = limit
-                            viewModel.scheduleSave()
-                        }) {
-                            Text(limit == 0 ? "\u{221E}" : "\(limit)")
-                                .font(.system(size: 10, weight: viewModel.maxClipboardEntries == limit ? .bold : .medium, design: .rounded))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 5)
-                                .background(viewModel.maxClipboardEntries == limit ? Design.accent.opacity(0.15) : Design.buttonTint)
-                                .foregroundColor(viewModel.maxClipboardEntries == limit ? Design.accent : Design.subtleText)
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                    HStack(spacing: 4) {
+                        ForEach(clipLimits, id: \.self) { limit in
+                            Button(action: {
+                                viewModel.maxClipboardEntries = limit
+                                viewModel.scheduleSave()
+                            }) {
+                                Text(limit == 0 ? "\u{221E}" : "\(limit)")
+                                    .font(.system(size: 10, weight: viewModel.maxClipboardEntries == limit ? .bold : .medium, design: .rounded))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 5)
+                                    .background(viewModel.maxClipboardEntries == limit ? Design.accent.opacity(0.15) : Design.buttonTint)
+                                    .foregroundColor(viewModel.maxClipboardEntries == limit ? Design.accent : Design.subtleText)
+                                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
+
+                    Text(viewModel.maxClipboardEntries == 0
+                         ? "Ubegrenset (maks 500)"
+                         : "Eldste slettes automatisk n\u{00E5}r grensen n\u{00E5}s")
+                        .font(.system(size: 9, design: .rounded))
+                        .foregroundColor(Design.subtleText.opacity(0.6))
                 }
 
-                Text(viewModel.maxClipboardEntries == 0
-                     ? "Ubegrenset (maks 500)"
-                     : "Eldste slettes automatisk n\u{00E5}r grensen n\u{00E5}s")
-                    .font(.system(size: 9, design: .rounded))
-                    .foregroundColor(Design.subtleText.opacity(0.6))
+                settingsToggle(
+                    title: "Nyeste utklipp \u{00F8}verst",
+                    subtitle: "Av = eldste f\u{00F8}rst, nye legges nederst",
+                    isOn: Binding(
+                        get: { viewModel.clipboardNewestOnTop },
+                        set: { newVal in
+                            viewModel.clipboardNewestOnTop = newVal
+                            viewModel.scheduleSave()
+                        }
+                    )
+                )
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Tomme linjer mellom kopierte utklipp")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundColor(Design.primaryText)
+
+                    HStack(spacing: 4) {
+                        ForEach([0, 1, 2, 3], id: \.self) { n in
+                            Button(action: {
+                                viewModel.clipboardCopyBlankLines = n
+                                viewModel.scheduleSave()
+                            }) {
+                                Text("\(n)")
+                                    .font(.system(size: 10, weight: viewModel.clipboardCopyBlankLines == n ? .bold : .medium, design: .rounded))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 5)
+                                    .background(viewModel.clipboardCopyBlankLines == n ? Design.accent.opacity(0.15) : Design.buttonTint)
+                                    .foregroundColor(viewModel.clipboardCopyBlankLines == n ? Design.accent : Design.subtleText)
+                                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    Text(blankLinesHint)
+                        .font(.system(size: 9, design: .rounded))
+                        .foregroundColor(Design.subtleText.opacity(0.6))
+                }
+
+                settingsToggle(
+                    title: "Inkluder gruppenavn i kopier",
+                    subtitle: "Legger GRUPPENAVN (caps) \u{00F8}verst i kopierte utklipp fra en gruppe",
+                    isOn: Binding(
+                        get: { viewModel.clipboardIncludeGroupHeader },
+                        set: { newVal in
+                            viewModel.clipboardIncludeGroupHeader = newVal
+                            viewModel.scheduleSave()
+                        }
+                    )
+                )
             }
+        }
+    }
+
+    private var blankLinesHint: String {
+        switch viewModel.clipboardCopyBlankLines {
+        case 0: return "Ingen blank linje \u{2014} utklippene limes rett under hverandre"
+        case 1: return "\u{00C9}n blank linje mellom hvert utklipp (standard)"
+        case 2: return "To blanke linjer mellom hvert utklipp"
+        default: return "\(viewModel.clipboardCopyBlankLines) blanke linjer mellom hvert utklipp"
         }
     }
 
     // MARK: - Screenshots
 
     private var screenshotSection: some View {
-        settingsGroup(title: "Skjermbilder", icon: "camera.viewfinder") {
+        settingsGroup(title: "Skjermbilde", icon: "camera.viewfinder") {
             settingsToggle(
                 title: "Lagre skjermbilder automatisk",
                 subtitle: "Overvåker skrivebordet for nye skjermbilder",
@@ -164,7 +233,11 @@ struct SettingsSheet: View {
     // MARK: - Cleanup
 
     private var cleanupSection: some View {
-        settingsGroup(title: "Auto-opprydding", icon: "clock.arrow.circlepath") {
+        collapsibleSettingsGroup(
+            title: "Auto-opprydding",
+            icon: "clock.arrow.circlepath",
+            isExpanded: $cleanupSectionExpanded
+        ) {
             cleanupRow(title: "Filer", current: viewModel.autoCleanupFilesDays) {
                 viewModel.autoCleanupFilesDays = $0
                 viewModel.scheduleSave()
@@ -173,56 +246,9 @@ struct SettingsSheet: View {
                 viewModel.autoCleanupClipboardDays = $0
                 viewModel.scheduleSave()
             }
-            cleanupRow(title: "Paths", current: viewModel.autoCleanupPathsDays) {
+            cleanupRow(title: "Filsti", current: viewModel.autoCleanupPathsDays) {
                 viewModel.autoCleanupPathsDays = $0
                 viewModel.scheduleSave()
-            }
-        }
-    }
-
-    // MARK: - AI
-
-    @State private var showKey = false
-
-    private var aiSection: some View {
-        settingsGroup(title: "AI", icon: "sparkles") {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("OpenAI API-n\u{00F8}kkel")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundColor(Design.primaryText)
-
-                HStack(spacing: 6) {
-                    Group {
-                        if showKey {
-                            TextField("sk-...", text: $viewModel.openAIKey)
-                        } else {
-                            SecureField("sk-...", text: $viewModel.openAIKey)
-                        }
-                    }
-                    .font(.system(size: 10, design: .monospaced))
-                    .textFieldStyle(.plain)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
-                    .background(Design.cardBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(Design.borderColor, lineWidth: 0.5)
-                    )
-
-                    Button(action: { showKey.toggle() }) {
-                        Image(systemName: showKey ? "eye.slash" : "eye")
-                            .font(.system(size: 10))
-                            .foregroundColor(Design.subtleText)
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                Text(viewModel.openAIKey.isEmpty
-                     ? "Legg til n\u{00F8}kkel for AI-navngivning av eksporterte filer"
-                     : "Aktiv \u{2014} eksporterte filer f\u{00E5}r forslag til filnavn fra GPT-4o-mini")
-                    .font(.system(size: 9, design: .rounded))
-                    .foregroundColor(viewModel.openAIKey.isEmpty ? Design.subtleText.opacity(0.5) : Design.accent.opacity(0.7))
             }
         }
     }
@@ -232,6 +258,8 @@ struct SettingsSheet: View {
     private var shortcutsSection: some View {
         settingsGroup(title: "Snarveier", icon: "keyboard") {
             VStack(spacing: 4) {
+                shortcutRow("\u{2325}Space", "Vis/skjul panelet (global)")
+                shortcutRow("\u{2325}\u{21E7}N", "Vis/skjul Quick Notes (global)")
                 shortcutRow("\u{2318}1 / 2 / 3", "Bytt fane")
                 shortcutRow("\u{2318}F", "S\u{00F8}k i utklipp")
                 shortcutRow("\u{2318}C", "Kopier valgte utklipp")
@@ -246,6 +274,50 @@ struct SettingsSheet: View {
     }
 
     // MARK: - Helpers
+
+    private func collapsibleSettingsGroup<Content: View>(
+        title: String,
+        icon: String,
+        isExpanded: Binding<Bool>,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isExpanded.wrappedValue.toggle()
+                }
+            }) {
+                HStack(spacing: 5) {
+                    Image(systemName: icon)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(Design.accent)
+                    Text(title)
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundColor(Design.primaryText)
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(Design.subtleText.opacity(0.6))
+                        .rotationEffect(.degrees(isExpanded.wrappedValue ? 0 : -90))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded.wrappedValue {
+                content()
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Design.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Design.borderColor, lineWidth: 0.5)
+        )
+    }
 
     private func settingsGroup<Content: View>(title: String, icon: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {

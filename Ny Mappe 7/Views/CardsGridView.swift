@@ -107,6 +107,16 @@ struct CardsGridView: View {
                     viewModel.showBatchRenameSheet = true
                 }
             }
+            if !viewModel.contextBundles.isEmpty {
+                Menu("Legg til i bundle") {
+                    ForEach(viewModel.contextBundles.sorted { $0.sortIndex < $1.sortIndex }) { bundle in
+                        Button(bundle.name) {
+                            viewModel.addFileToBundle(bundleId: bundle.id, stashItemId: item.id)
+                            viewModel.showToast("Lagt til i \(bundle.name)")
+                        }
+                    }
+                }
+            }
             Divider()
             Button("Fjern", role: .destructive) {
                 viewModel.selectedItemIds = [item.id]

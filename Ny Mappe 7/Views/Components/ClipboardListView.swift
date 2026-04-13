@@ -3,45 +3,58 @@ import SwiftUI
 struct ClipboardListView: View {
     @ObservedObject var viewModel: StashViewModel
     @FocusState private var isSearchFocused: Bool
+    @State private var showNewGroupField: Bool = false
+    @State private var newGroupName: String = ""
+    @FocusState private var isNewGroupFocused: Bool
+    @State private var renamingGroupId: UUID?
+    @State private var renameGroupBuffer: String = ""
+    @FocusState private var isRenameFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
             // Clipboard header (full mode: select/clear row + action row)
             if !viewModel.clipboardEntries.isEmpty && !viewModel.isLightVersion {
+                let hasSelection = !viewModel.selectedClipboardIds.isEmpty
                 VStack(spacing: 4) {
                     HStack {
-                        if !viewModel.selectedClipboardIds.isEmpty {
-                            Text("\(viewModel.selectedClipboardIds.count) valgt")
-                                .font(Design.captionFont)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Design.accent.opacity(0.15))
-                                .foregroundColor(Design.accent)
-                                .clipShape(Capsule())
-                        }
-
-                        Spacer()
-
-                        if viewModel.selectedClipboardIds.count == viewModel.clipboardEntries.count {
+                        // Venstre: selection chip fungerer som «Fjern valg»-knapp når noe er valgt
+                        if hasSelection {
                             Button(action: {
                                 withAnimation(.easeInOut(duration: 0.1)) {
                                     viewModel.deselectAllClipboardEntries()
                                 }
                             }) {
                                 HStack(spacing: 3) {
-                                    Image(systemName: "xmark.circle")
-                                        .font(.system(size: 10))
-                                    Text("Fjern valg")
+                                    Text("\(viewModel.selectedClipboardIds.count) valgt")
                                         .font(Design.captionFont)
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 10))
                                 }
-                                .foregroundColor(Design.subtleText)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .background(Design.buttonTint)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(Design.accent.opacity(0.15))
+                                .foregroundColor(Design.accent)
                                 .clipShape(Capsule())
-                                .overlay(Capsule().stroke(Design.buttonBorder, lineWidth: 0.5))
                             }
                             .buttonStyle(.plain)
+                            .help("Klikk for å fjerne valg")
+                        }
+
+                        Spacer()
+
+                        // Høyre: Kopier (solid) når valgt, ellers Velg alle
+                        if hasSelection {
+                            Button(action: {
+                                viewModel.copySelectedClipboardEntries()
+                            }) {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "doc.on.doc")
+                                        .font(.system(size: 10))
+                                    Text("Kopier")
+                                        .font(Design.captionFont)
+                                }
+                            }
+                            .buttonStyle(Design.PillButtonStyle(isAccent: true, isSolid: true))
                         } else {
                             Button(action: {
                                 withAnimation(.easeInOut(duration: 0.1)) {
@@ -83,23 +96,93 @@ struct ClipboardListView: View {
                         .buttonStyle(.plain)
                     }
 
-                    // Action row: copy + export buttons (when items selected)
-                    if !viewModel.selectedClipboardIds.isEmpty {
-                        HStack {
-                            Spacer()
-
+                    // Action row: gruppe-kontroller + eksport-knapper
+                    HStack(spacing: 6) {
+                        if showNewGroupField {
+                            TextField("Gruppenavn\u{2026}", text: $newGroupName)
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 10, design: .rounded))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(Design.buttonTint)
+                                .clipShape(RoundedRectangle(cornerRadius: 5))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 5)
+                                        .stroke(Design.accent.opacity(0.4), lineWidth: 0.6)
+                                )
+                                .focused($isNewGroupFocused)
+                                .onSubmit { commitNewGroup() }
+                                .frame(maxWidth: 120)
+                            Button(action: { commitNewGroup() }) {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundColor(Design.accent)
+                                    .padding(5)
+                            }
+                            .buttonStyle(.plain)
                             Button(action: {
-                                viewModel.copySelectedClipboardEntries()
+                                showNewGroupField = false
+                                newGroupName = ""
+                            }) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundColor(Design.subtleText)
+                                    .padding(5)
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            Button(action: {
+                                showNewGroupField = true
+                                isNewGroupFocused = true
                             }) {
                                 HStack(spacing: 3) {
-                                    Image(systemName: "doc.on.doc")
+                                    Image(systemName: "folder.badge.plus")
                                         .font(.system(size: 10))
-                                    Text("Kopier")
+                                    Text("Gruppe")
                                         .font(Design.captionFont)
                                 }
+                                .foregroundColor(Design.subtleText)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Design.buttonTint)
+                                .clipShape(Capsule())
+                                .overlay(Capsule().stroke(Design.buttonBorder, lineWidth: 0.5))
                             }
-                            .buttonStyle(Design.PillButtonStyle(isAccent: true, isSolid: true))
+                            .buttonStyle(.plain)
+                            .help("Lag ny gruppe")
+                        }
 
+                        if hasSelection && !viewModel.clipboardGroups.isEmpty {
+                            Menu {
+                                Button("Usortert") {
+                                    viewModel.moveSelectedClipboardEntries(toGroup: nil)
+                                }
+                                Divider()
+                                ForEach(viewModel.clipboardGroups.sorted { $0.sortIndex < $1.sortIndex }) { group in
+                                    Button(group.name) {
+                                        viewModel.moveSelectedClipboardEntries(toGroup: group.id)
+                                    }
+                                }
+                            } label: {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "arrow.right.to.line.compact")
+                                        .font(.system(size: 10))
+                                    Text("Flytt til")
+                                        .font(Design.captionFont)
+                                }
+                                .foregroundColor(Design.accent)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Design.accent.opacity(0.12))
+                                .clipShape(Capsule())
+                            }
+                            .menuStyle(.borderlessButton)
+                            .fixedSize()
+                        }
+
+                        Spacer()
+
+                        if hasSelection {
                             Button(action: {
                                 viewModel.exportSelectedClipboardEntries()
                             }) {
@@ -112,17 +195,33 @@ struct ClipboardListView: View {
                             }
                             .buttonStyle(Design.PillButtonStyle(isAccent: true))
 
-                            Button(action: {
-                                viewModel.exportSelectedClipboardEntriesAsCSV()
-                            }) {
-                                HStack(spacing: 3) {
-                                    Image(systemName: "tablecells")
-                                        .font(.system(size: 10))
-                                    Text(".csv")
-                                        .font(Design.captionFont)
+                            if viewModel.csvColumnBuilder == nil {
+                                Button(action: {
+                                    viewModel.exportSelectedClipboardEntriesAsCSV()
+                                }) {
+                                    HStack(spacing: 3) {
+                                        Image(systemName: "tablecells")
+                                            .font(.system(size: 10))
+                                        Text(".csv")
+                                            .font(Design.captionFont)
+                                    }
                                 }
+                                .buttonStyle(Design.PillButtonStyle(isAccent: true))
+
+                                Button(action: {
+                                    viewModel.startCSVColumnBuilder()
+                                    viewModel.appendSelectedToCurrentCSVColumn()
+                                }) {
+                                    HStack(spacing: 3) {
+                                        Image(systemName: "tablecells.badge.ellipsis")
+                                            .font(.system(size: 10))
+                                        Text("CSV+")
+                                            .font(Design.captionFont)
+                                    }
+                                }
+                                .buttonStyle(Design.PillButtonStyle(isAccent: true))
+                                .help("Bygg CSV kolonnevis \u{2014} fyll kolonne A, s\u{00E5} B, osv.")
                             }
-                            .buttonStyle(Design.PillButtonStyle(isAccent: true))
                         }
                     }
                 }
@@ -173,42 +272,15 @@ struct ClipboardListView: View {
                 .padding(.bottom, 2)
             }
 
+            if viewModel.csvColumnBuilder != nil {
+                csvBuilderBanner
+            }
+
             if viewModel.clipboardEntries.isEmpty {
                 clipboardEmptyState
             } else {
                 clipboardSearchBar
-
-                let entries = viewModel.filteredClipboardEntries
-                let pinned = entries.filter { $0.isPinned }
-                let unpinned = entries.filter { !$0.isPinned }
-                let allSorted = pinned + unpinned
-
-                ScrollView {
-                    let columns = [
-                        GridItem(.flexible(), spacing: 6),
-                        GridItem(.flexible(), spacing: 6)
-                    ]
-                    LazyVGrid(columns: columns, alignment: .leading, spacing: 6) {
-                        ForEach(allSorted) { entry in
-                            ClipboardCard(
-                                entry: entry,
-                                isSelected: viewModel.selectedClipboardIds.contains(entry.id),
-                                isCompact: viewModel.isLightVersion,
-                                viewModel: viewModel
-                            )
-                            .frame(maxHeight: .infinity, alignment: .top)
-                        }
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
-
-                    if allSorted.isEmpty && !viewModel.clipboardSearchText.isEmpty {
-                        Text("Ingen treff for \u{00AB}\(viewModel.clipboardSearchText)\u{00BB}")
-                            .font(.system(size: 11, design: .rounded))
-                            .foregroundColor(Design.subtleText)
-                            .padding(.vertical, 12)
-                    }
-                }
+                clipboardGroupedScroll
             }
 
             if !viewModel.clipboardEntries.isEmpty {
@@ -219,6 +291,431 @@ struct ClipboardListView: View {
         .onChange(of: viewModel.clipboardSearchFocusTrigger) { _ in
             isSearchFocused = true
         }
+    }
+
+    // MARK: - CSV Column Builder Banner
+
+    @ViewBuilder
+    private var csvBuilderBanner: some View {
+        if let builder = viewModel.csvColumnBuilder {
+            let currentLetter = viewModel.columnLetter(for: builder.currentColumnIndex)
+            let hasSelection = !viewModel.selectedClipboardIds.isEmpty
+            let currentEmpty = builder.columns[builder.currentColumnIndex].isEmpty
+
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 5) {
+                    Image(systemName: "tablecells.badge.ellipsis")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(Design.accent)
+                    Text("CSV-bygger \u{2014} n\u{00E5}v\u{00E6}rende: Kolonne \(currentLetter)")
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundColor(Design.primaryText)
+                    Spacer()
+                    // Live oversikt
+                    HStack(spacing: 3) {
+                        ForEach(Array(builder.columns.enumerated()), id: \.offset) { idx, col in
+                            let letter = viewModel.columnLetter(for: idx)
+                            Text("\(letter): \(col.count)")
+                                .font(.system(size: 8, weight: idx == builder.currentColumnIndex ? .bold : .medium, design: .monospaced))
+                                .foregroundColor(idx == builder.currentColumnIndex ? Design.accent : Design.subtleText)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(idx == builder.currentColumnIndex ? Design.accent.opacity(0.12) : Design.buttonTint)
+                                .clipShape(Capsule())
+                        }
+                    }
+                }
+
+                HStack(spacing: 5) {
+                    Button(action: {
+                        viewModel.appendSelectedToCurrentCSVColumn()
+                    }) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 9))
+                            Text("Legg valgte i \(currentLetter)")
+                                .font(.system(size: 10, weight: .medium, design: .rounded))
+                        }
+                    }
+                    .buttonStyle(Design.PillButtonStyle(isAccent: true))
+                    .disabled(!hasSelection)
+                    .opacity(hasSelection ? 1.0 : 0.5)
+
+                    Button(action: {
+                        viewModel.startNextCSVColumn()
+                    }) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "arrow.right")
+                                .font(.system(size: 9))
+                            Text("Neste kolonne")
+                                .font(.system(size: 10, weight: .medium, design: .rounded))
+                        }
+                    }
+                    .buttonStyle(Design.PillButtonStyle())
+                    .disabled(currentEmpty)
+                    .opacity(currentEmpty ? 0.5 : 1.0)
+
+                    Spacer()
+
+                    Button(action: {
+                        viewModel.finishCSVColumnBuilderAndExport()
+                    }) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 9))
+                            Text("Ferdig")
+                                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        }
+                    }
+                    .buttonStyle(Design.PillButtonStyle(isAccent: true, isSolid: true))
+                    .disabled(builder.totalEntries == 0)
+                    .opacity(builder.totalEntries == 0 ? 0.5 : 1.0)
+
+                    Button(action: {
+                        viewModel.cancelCSVColumnBuilder()
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(Design.subtleText)
+                            .padding(5)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Avbryt")
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Design.accent.opacity(0.08))
+            .overlay(
+                Rectangle()
+                    .frame(height: 0.5)
+                    .foregroundColor(Design.accent.opacity(0.3)),
+                alignment: .bottom
+            )
+        }
+    }
+
+    private func commitNewGroup() {
+        let trimmed = newGroupName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            viewModel.createClipboardGroup(name: trimmed)
+        }
+        newGroupName = ""
+        showNewGroupField = false
+    }
+
+    private func startRenameGroup(_ group: ClipboardGroup) {
+        renamingGroupId = group.id
+        renameGroupBuffer = group.name
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            isRenameFocused = true
+        }
+    }
+
+    private func commitRenameGroup() {
+        guard let id = renamingGroupId else { return }
+        viewModel.renameClipboardGroup(id: id, name: renameGroupBuffer)
+        cancelRenameGroup()
+    }
+
+    private func cancelRenameGroup() {
+        renamingGroupId = nil
+        renameGroupBuffer = ""
+    }
+
+    // MARK: - Grouped Scroll (pinned + grouper + ingen gruppe)
+
+    private struct GroupSection: Identifiable {
+        let id: String          // "pinned", "none", eller UUID-string
+        let groupId: UUID?      // nil for pinned eller "Ingen gruppe"
+        let title: String
+        let isPinnedSection: Bool
+        let group: ClipboardGroup?
+        let entries: [ClipboardEntry]
+    }
+
+    private var groupSections: [GroupSection] {
+        let entries = viewModel.filteredClipboardEntries
+        let newestTop = viewModel.clipboardNewestOnTop
+
+        func ordered(_ items: [ClipboardEntry]) -> [ClipboardEntry] {
+            newestTop ? items : Array(items.reversed())
+        }
+
+        var sections: [GroupSection] = []
+
+        // 1. Pinned section (alltid \u{00F8}verst hvis noe er festet)
+        let pinned = entries.filter { $0.isPinned }
+        if !pinned.isEmpty {
+            sections.append(GroupSection(
+                id: "pinned",
+                groupId: nil,
+                title: "Festet",
+                isPinnedSection: true,
+                group: nil,
+                entries: ordered(pinned)
+            ))
+        }
+
+        // 2. Grupper (sortert p\u{00E5} sortIndex)
+        let unpinnedAll = entries.filter { !$0.isPinned }
+        let sortedGroups = viewModel.clipboardGroups.sorted { $0.sortIndex < $1.sortIndex }
+        for group in sortedGroups {
+            let groupEntries = unpinnedAll.filter { $0.groupId == group.id }
+            sections.append(GroupSection(
+                id: group.id.uuidString,
+                groupId: group.id,
+                title: group.name,
+                isPinnedSection: false,
+                group: group,
+                entries: ordered(groupEntries)
+            ))
+        }
+
+        // 3. Ingen gruppe (entries uten groupId, eller groupId som peker til slettet gruppe)
+        let knownGroupIds = Set(viewModel.clipboardGroups.map { $0.id })
+        let ungrouped = unpinnedAll.filter { entry in
+            guard let gid = entry.groupId else { return true }
+            return !knownGroupIds.contains(gid)
+        }
+        if !ungrouped.isEmpty || sections.isEmpty || !viewModel.clipboardGroups.isEmpty {
+            sections.append(GroupSection(
+                id: "none",
+                groupId: nil,
+                title: "Usortert",
+                isPinnedSection: false,
+                group: nil,
+                entries: ordered(ungrouped)
+            ))
+        }
+
+        return sections
+    }
+
+    private var clipboardGroupedScroll: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 6) {
+                let sections = groupSections
+                ForEach(sections) { section in
+                    groupSectionView(section)
+                }
+
+                if sections.allSatisfy({ $0.entries.isEmpty }) && !viewModel.clipboardSearchText.isEmpty {
+                    Text("Ingen treff for \u{00AB}\(viewModel.clipboardSearchText)\u{00BB}")
+                        .font(.system(size: 11, design: .rounded))
+                        .foregroundColor(Design.subtleText)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+        }
+    }
+
+    @ViewBuilder
+    private func groupSectionView(_ section: GroupSection) -> some View {
+        // Aktiv-sjekk: en konkret gruppe er aktiv hvis IDen matcher,
+        // OG "Ingen gruppe"-seksjonen er aktiv hvis activeClipboardGroupId == nil.
+        // Pinned-seksjonen kan aldri være aktiv mål.
+        let isActiveTarget: Bool = {
+            if section.isPinnedSection { return false }
+            if let groupId = section.group?.id {
+                return groupId == viewModel.activeClipboardGroupId
+            }
+            // section.id == "none" → aktiv hvis activeClipboardGroupId er nil
+            return section.id == "none" && viewModel.activeClipboardGroupId == nil
+        }()
+        let isExpanded = section.isPinnedSection ? true : viewModel.isClipboardGroupExpanded(section.groupId)
+
+        VStack(alignment: .leading, spacing: 4) {
+            groupHeader(section: section, isExpanded: isExpanded, isActiveTarget: isActiveTarget)
+
+            if isExpanded {
+                if section.entries.isEmpty {
+                    Text(section.isPinnedSection ? "Ingen festede" : "Tom gruppe")
+                        .font(.system(size: 9, design: .rounded))
+                        .foregroundColor(Design.subtleText.opacity(0.5))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                } else {
+                    let columns = [
+                        GridItem(.flexible(), spacing: 6),
+                        GridItem(.flexible(), spacing: 6)
+                    ]
+                    LazyVGrid(columns: columns, alignment: .leading, spacing: 6) {
+                        ForEach(section.entries) { entry in
+                            ClipboardCard(
+                                entry: entry,
+                                isSelected: viewModel.selectedClipboardIds.contains(entry.id),
+                                isCompact: viewModel.isLightVersion,
+                                viewModel: viewModel
+                            )
+                            .frame(maxHeight: .infinity, alignment: .top)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    @ViewBuilder
+    private func groupHeader(section: GroupSection, isExpanded: Bool, isActiveTarget: Bool) -> some View {
+        // Pinned-seksjonen er ikke en mål-gruppe og skal ikke settes aktiv ved klikk.
+        let canBeActive = !section.isPinnedSection
+
+        HStack(spacing: 6) {
+            if !section.isPinnedSection {
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        viewModel.toggleClipboardGroupExpanded(section.groupId)
+                    }
+                }) {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(Design.subtleText)
+                        .frame(width: 12)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Image(systemName: "pin.fill")
+                    .font(.system(size: 9))
+                    .foregroundColor(Design.accent)
+                    .frame(width: 12)
+            }
+
+            // Midtdel: enten inline rename eller klikkbart navn
+            if let group = section.group, renamingGroupId == group.id {
+                TextField("Gruppenavn", text: $renameGroupBuffer)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundColor(Design.primaryText)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(Design.buttonTint)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(Design.accent.opacity(0.4), lineWidth: 0.6)
+                    )
+                    .focused($isRenameFocused)
+                    .onSubmit { commitRenameGroup() }
+                    .frame(maxWidth: 140)
+
+                Button(action: { commitRenameGroup() }) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(Design.accent)
+                        .padding(3)
+                }
+                .buttonStyle(.plain)
+
+                Button(action: { cancelRenameGroup() }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(Design.subtleText)
+                        .padding(3)
+                }
+                .buttonStyle(.plain)
+
+                Spacer(minLength: 0)
+            } else {
+                Button(action: {
+                    guard canBeActive else { return }
+                    if isActiveTarget {
+                        viewModel.setActiveClipboardGroup(nil)
+                    } else {
+                        viewModel.setActiveClipboardGroup(section.group?.id)
+                    }
+                }) {
+                    HStack(spacing: 6) {
+                        Text(section.title)
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                            .foregroundColor(section.isPinnedSection ? Design.accent : Design.primaryText)
+
+                        Text("\(section.entries.count)")
+                            .font(.system(size: 8, weight: .bold, design: .rounded))
+                            .foregroundColor(Design.subtleText)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Design.buttonTint)
+                            .clipShape(Capsule())
+
+                        if isActiveTarget {
+                            Text("\u{25CF} Aktiv m\u{00E5}l")
+                                .font(.system(size: 8, weight: .bold, design: .rounded))
+                                .foregroundColor(Design.accent)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(Design.accent.opacity(0.12))
+                                .clipShape(Capsule())
+                        }
+
+                        Spacer(minLength: 0)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(canBeActive
+                    ? (isActiveTarget
+                        ? "Aktiv m\u{00E5}l-gruppe \u{2014} klikk for \u{00E5} sl\u{00E5} av"
+                        : "Klikk for \u{00E5} sette som aktiv m\u{00E5}l-gruppe. Dobbeltklikk for \u{00E5} gi nytt navn.")
+                    : "")
+                .simultaneousGesture(
+                    TapGesture(count: 2).onEnded {
+                        if let group = section.group {
+                            startRenameGroup(group)
+                        }
+                    }
+                )
+                .contextMenu {
+                    if let group = section.group {
+                        Button("Gi nytt navn\u{2026}") { startRenameGroup(group) }
+                        Button(isActiveTarget ? "Sl\u{00E5} av aktiv m\u{00E5}l" : "Sett som aktiv m\u{00E5}l") {
+                            viewModel.setActiveClipboardGroup(isActiveTarget ? nil : group.id)
+                        }
+                        Divider()
+                        Button("Slett gruppe", role: .destructive) {
+                            withAnimation { viewModel.deleteClipboardGroup(id: group.id) }
+                        }
+                    }
+                }
+            }
+
+            // Action-knapper (kun for ekte grupper, ikke under rename)
+            if let group = section.group, renamingGroupId != group.id {
+                Button(action: { startRenameGroup(group) }) {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 9))
+                        .foregroundColor(Design.subtleText.opacity(0.6))
+                        .padding(3)
+                }
+                .buttonStyle(.plain)
+                .help("Gi nytt navn")
+
+                Button(action: {
+                    withAnimation { viewModel.deleteClipboardGroup(id: group.id) }
+                }) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 9))
+                        .foregroundColor(Design.subtleText.opacity(0.6))
+                        .padding(3)
+                }
+                .buttonStyle(.plain)
+                .help("Slett gruppe (items blir uten gruppe)")
+            }
+        }
+        .padding(.horizontal, 4)
+        .padding(.vertical, 3)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(isActiveTarget ? Design.accent.opacity(0.10) : Color.clear)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(isActiveTarget ? Design.accent.opacity(0.4) : Color.clear, lineWidth: 1)
+        )
     }
 
     private var clipboardActionBar: some View {
@@ -462,6 +959,32 @@ struct ClipboardCard: View {
             }
         }
         .help(entry.text.prefix(300) + (entry.text.count > 300 ? "\u{2026}" : ""))
+        .contextMenu {
+            Button("Kopier") {
+                viewModel.copyClipboardEntry(entry)
+            }
+            Button(entry.isPinned ? "Fjern feste" : "Fest") {
+                viewModel.togglePinClipboardEntry(entry)
+            }
+            if !viewModel.contextBundles.isEmpty {
+                Menu("Legg til som snippet i bundle") {
+                    ForEach(viewModel.contextBundles.sorted { $0.sortIndex < $1.sortIndex }) { bundle in
+                        Button(bundle.name) {
+                            _ = viewModel.addTextToBundle(
+                                bundleId: bundle.id,
+                                title: "",
+                                body: entry.text
+                            )
+                            viewModel.showToast("Lagt til i \(bundle.name)")
+                        }
+                    }
+                }
+            }
+            Divider()
+            Button("Slett", role: .destructive) {
+                viewModel.deleteClipboardEntry(entry)
+            }
+        }
     }
 
     private func flashCopied() {

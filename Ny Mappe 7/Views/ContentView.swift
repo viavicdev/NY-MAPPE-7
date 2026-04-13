@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 import AppKit
 
 struct ContentView: View {
-    @StateObject private var viewModel = StashViewModel()
+    @ObservedObject private var viewModel = StashViewModel.shared
     @State private var isDragTargeted = false
     @State private var dropPulse = false
     @State private var forceDark: Bool? = nil
@@ -73,6 +73,8 @@ struct ContentView: View {
                     }
                 }
             }
+
+            ToastOverlay(message: viewModel.toastMessage)
 
             // Animated drop zone overlay
             if isDragTargeted {
@@ -209,7 +211,7 @@ struct ContentView: View {
                     viewModel.selectAll()
                 case .paths:
                     viewModel.selectAllPathEntries()
-                case .sheets:
+                case .sheets, .bundles:
                     break
                 }
             }
@@ -254,7 +256,7 @@ struct ContentView: View {
                         withAnimation { viewModel.removeSelectedPathEntries() }
                         return true
                     }
-                case .sheets:
+                case .sheets, .bundles:
                     break
                 }
             }
@@ -299,7 +301,7 @@ struct ContentView: View {
                         viewModel.selectedPathIds.removeAll()
                         hadSelection = true
                     }
-                case .sheets:
+                case .sheets, .bundles:
                     break
                 }
             }
@@ -458,9 +460,10 @@ struct ContentView: View {
 
     private var settingsButton: some View {
         Button(action: { showSettings = true }) {
-            Image(systemName: "gearshape")
-                .font(.system(size: 12, weight: .light))
+            AppIcon("settings")
+                .frame(width: 13, height: 13)
                 .foregroundColor(Design.subtleText)
+                .padding(3)
                 .background(Design.buttonTint)
                 .clipShape(Circle())
         }
@@ -558,9 +561,9 @@ struct ContentView: View {
     private var tabBar: some View {
         ZStack(alignment: .topTrailing) {
             HStack(spacing: 0) {
-                tabButton(title: "Filer", icon: "doc.on.doc", count: viewModel.fileCount, tab: .files)
-                tabButton(title: "Utklipp", icon: "doc.on.clipboard", count: viewModel.clipboardCount, tab: .clipboard)
-                tabButton(title: "Verkt\u{00F8}y", icon: "wrench.and.screwdriver", count: viewModel.toolsCount, tab: .tools)
+                tabButton(title: "Filer", icon: "doc.on.doc", customIcon: "filer", count: viewModel.fileCount, tab: .files)
+                tabButton(title: "Utklipp", icon: "doc.on.clipboard", customIcon: "utklipp", count: viewModel.clipboardCount, tab: .clipboard)
+                tabButton(title: "Verkt\u{00F8}y", icon: "wrench.and.screwdriver", customIcon: nil, count: viewModel.toolsCount, tab: .tools)
 
                 Spacer()
                     .frame(width: 52)
@@ -599,7 +602,7 @@ struct ContentView: View {
         )
     }
 
-    private func tabButton(title: String, icon: String, count: Int, tab: StashViewModel.AppTab) -> some View {
+    private func tabButton(title: String, icon: String, customIcon: String? = nil, count: Int, tab: StashViewModel.AppTab) -> some View {
         let isActive = viewModel.activeTab == tab
         return Button(action: {
             withAnimation(.easeInOut(duration: 0.2)) {
@@ -608,9 +611,14 @@ struct ContentView: View {
             }
         }) {
             VStack(spacing: 0) {
-                HStack(spacing: 3) {
-                    Image(systemName: icon)
-                        .font(.system(size: 10, weight: isActive ? .semibold : .light))
+                HStack(spacing: 4) {
+                    if let customIcon = customIcon {
+                        AppIcon(customIcon)
+                            .frame(width: 12, height: 12)
+                    } else {
+                        Image(systemName: icon)
+                            .font(.system(size: 10, weight: isActive ? .semibold : .light))
+                    }
                     Text(title)
                         .font(.system(size: 11, weight: isActive ? .bold : .medium, design: .rounded))
                     if count > 0 {
