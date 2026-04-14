@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct PathListView: View {
     @ObservedObject var viewModel: StashViewModel
@@ -278,8 +279,13 @@ struct PathCard: View {
                         entry.isPinned ? Design.accent.opacity(0.20) : Design.borderColor, lineWidth: isSelected ? 1.5 : 0.5)
         )
         .onTapGesture {
+            let flags = NSApp.currentEvent?.modifierFlags ?? []
             withAnimation(.easeInOut(duration: 0.1)) {
-                viewModel.togglePathSelection(entry.id)
+                if flags.contains(.shift) {
+                    viewModel.selectRangeInPaths(to: entry.id)
+                } else {
+                    viewModel.togglePathSelection(entry.id)
+                }
             }
         }
         .onHover { hovering in

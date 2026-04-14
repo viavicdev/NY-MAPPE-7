@@ -15,7 +15,7 @@ set -e
 APP_NAME="Ny Mappe (7) v2"
 EXECUTABLE="NyMappa7"
 MIN_MACOS="13.0"
-VERSION="4.5"
+VERSION="4.8"
 
 # ── Code Signing & Notarization ──────────────────────────
 # Fill in these values from your Apple Developer account:
@@ -186,7 +186,17 @@ PLIST
 ARCHS=$(lipo -archs "$APP_DIR/Contents/MacOS/${EXECUTABLE}")
 SIZE=$(du -sh "$APP_DIR" | cut -f1)
 
-# ── Code Signing ──────────────────────────────────────────
+# ── Ad-hoc Code Signing (gir stabil identitet for TCC-permissions) ───
+# Uten dette får appen ny identitet hver build og macOS glemmer
+# tillatelser for Skrivebord/Dokumenter osv. — prompter deg konstant.
+# Ad-hoc-signering (-) krever ingen Apple Developer-konto.
+if [ "$DO_SIGN" = false ]; then
+    echo ""
+    echo "🔏 Ad-hoc signing (for stable TCC identity)..."
+    codesign --force --deep --sign - "$APP_DIR" 2>&1 | grep -v "replacing existing signature" || true
+fi
+
+# ── Full Code Signing (--sign eller --release) ───────────
 if [ "$DO_SIGN" = true ]; then
     if [ -z "$SIGNING_IDENTITY" ]; then
         echo ""

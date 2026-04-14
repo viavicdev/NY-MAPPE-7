@@ -110,4 +110,23 @@ final class PersistenceService {
         try? fileManager.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }
+
+    // MARK: - Bundle Storage
+
+    /// Hver bundle har sin egen mappe med filer \u{2014} selvstendig fra Filer-fanen.
+    func bundleStorageURL(for bundleId: UUID) -> URL {
+        let url = appSupportURL
+            .appendingPathComponent("Bundles", isDirectory: true)
+            .appendingPathComponent(bundleId.uuidString, isDirectory: true)
+        try? fileManager.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    /// Sletter hele bundle-mappen og alt innhold (brukes n\u{00E5}r en bundle slettes).
+    func removeBundleStorage(for bundleId: UUID) {
+        let url = appSupportURL
+            .appendingPathComponent("Bundles", isDirectory: true)
+            .appendingPathComponent(bundleId.uuidString, isDirectory: true)
+        try? fileManager.removeItem(at: url)
+    }
 }

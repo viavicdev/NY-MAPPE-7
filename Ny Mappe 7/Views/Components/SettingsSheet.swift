@@ -59,7 +59,7 @@ struct SettingsSheet: View {
                 Text("Ny Mappe (7)")
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundColor(Design.primaryText)
-                Text("v4.5")
+                Text("v4.8")
                     .font(.system(size: 9, weight: .medium, design: .monospaced))
                     .foregroundColor(Design.subtleText.opacity(0.5))
                     .padding(.horizontal, 5)
@@ -102,8 +102,8 @@ struct SettingsSheet: View {
             }
 
             settingsToggle(
-                title: viewModel.isLightVersion ? "Enkel modus" : "Full modus",
-                subtitle: "Bytt mellom enkel og full visning",
+                title: "Full modus",
+                subtitle: "Av = enkel (mindre panel). P\u{00E5} = full (mer plass).",
                 isOn: Binding(
                     get: { !viewModel.isLightVersion },
                     set: { newVal in withAnimation { viewModel.isLightVersion = !newVal } }

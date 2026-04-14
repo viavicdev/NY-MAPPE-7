@@ -460,8 +460,8 @@ struct ContentView: View {
 
     private var settingsButton: some View {
         Button(action: { showSettings = true }) {
-            AppIcon("settings")
-                .frame(width: 13, height: 13)
+            Image(systemName: "gearshape")
+                .font(.system(size: 12, weight: .light))
                 .foregroundColor(Design.subtleText)
                 .padding(3)
                 .background(Design.buttonTint)

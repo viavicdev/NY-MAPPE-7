@@ -220,8 +220,18 @@ struct ContextBundlesView: View {
                         sectionHeader("Filer", systemImage: "doc", count: bundle.fileItemCount)
                         VStack(spacing: 4) {
                             ForEach(bundle.items) { item in
-                                if case .file(let id, let stashItemId) = item {
+                                switch item {
+                                case .localFile(let id, let fileName, let sizeBytes, _):
+                                    localFileRow(
+                                        bundleId: bundle.id,
+                                        itemId: id,
+                                        fileName: fileName,
+                                        sizeBytes: sizeBytes
+                                    )
+                                case .file(let id, let stashItemId):
                                     fileRow(bundleId: bundle.id, itemId: id, stashItemId: stashItemId)
+                                case .text:
+                                    EmptyView()
                                 }
                             }
                         }
@@ -397,6 +407,48 @@ struct ContextBundlesView: View {
     }
 
     @ViewBuilder
+    private func localFileRow(bundleId: UUID, itemId: UUID, fileName: String, sizeBytes: Int64) -> some View {
+        let sizeStr = ByteCountFormatter.string(fromByteCount: sizeBytes, countStyle: .file)
+
+        HStack(spacing: 6) {
+            Image(systemName: "doc")
+                .font(.system(size: 11))
+                .foregroundColor(Design.accent)
+                .frame(width: 16)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(fileName)
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundColor(Design.primaryText)
+                    .lineLimit(1)
+                Text(sizeStr)
+                    .font(.system(size: 8, design: .monospaced))
+                    .foregroundColor(Design.subtleText.opacity(0.6))
+            }
+
+            Spacer()
+
+            Button(action: {
+                withAnimation { viewModel.removeBundleItem(bundleId: bundleId, itemId: itemId) }
+            }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9))
+                    .foregroundColor(Design.subtleText.opacity(0.6))
+                    .padding(3)
+            }
+            .buttonStyle(.plain)
+            .help("Fjern fra bundle")
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(Design.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6).stroke(Design.borderColor, lineWidth: 0.5)
+        )
+    }
+
+    @ViewBuilder
     private func fileRow(bundleId: UUID, itemId: UUID, stashItemId: UUID) -> some View {
         let stashItem = viewModel.items.first(where: { $0.id == stashItemId })
 
@@ -513,22 +565,14 @@ struct ContextBundlesView: View {
         renameBuffer = ""
     }
 
-    /// Drop fra Finder: importer URLs gjennom eksisterende StashItem-flyt,
-    /// og legg dem deretter til som file-items i bundlen.
+    /// Drop fra Finder: kopier filene rett inn i bundle-lagringen.
+    /// Bundles er selvstendige \u{2014} filene importeres IKKE til Filer-fanen.
     private func handleDrop(providers: [NSItemProvider], into bundleId: UUID) {
         for provider in providers {
             _ = provider.loadObject(ofClass: URL.self) { url, _ in
                 guard let url = url else { return }
                 DispatchQueue.main.async {
-                    let beforeIds = Set(viewModel.items.map { $0.id })
-                    viewModel.importURLs([url])
-                    // importURLs er asynkron — vent et lite øyeblikk og finn nye items
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                        let newItems = viewModel.items.filter { !beforeIds.contains($0.id) }
-                        for newItem in newItems {
-                            viewModel.addFileToBundle(bundleId: bundleId, stashItemId: newItem.id)
-                        }
-                    }
+                    viewModel.addLocalFileToBundle(bundleId: bundleId, sourceURL: url)
                 }
             }
         }

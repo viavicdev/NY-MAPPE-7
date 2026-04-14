@@ -23,7 +23,16 @@ struct ScreenshotLightGridView: View {
                     ScreenshotTile(
                         item: item,
                         isSelected: viewModel.selectedItemIds.contains(item.id),
-                        onTap: { lightboxItem = item },
+                        onTap: { flags in
+                            if flags.contains(.shift) {
+                                viewModel.selectRange(to: item.id)
+                            } else if flags.contains(.command) {
+                                viewModel.toggleSelection(item.id, extending: true)
+                            } else {
+                                // Enkelt-klikk: \u{00E5}pne lightbox (nåværende adferd)
+                                lightboxItem = item
+                            }
+                        },
                         onLongPress: {
                             viewModel.toggleSelection(item.id, extending: true)
                         }
@@ -50,7 +59,7 @@ struct ScreenshotLightGridView: View {
 private struct ScreenshotTile: View {
     let item: StashItem
     let isSelected: Bool
-    let onTap: () -> Void
+    let onTap: (NSEvent.ModifierFlags) -> Void
     let onLongPress: () -> Void
 
     @State private var isHovered = false
@@ -99,7 +108,10 @@ private struct ScreenshotTile: View {
                     )
             )
             .contentShape(RoundedRectangle(cornerRadius: 8))
-            .onTapGesture(perform: onTap)
+            .onTapGesture {
+                let flags = NSApp.currentEvent?.modifierFlags ?? []
+                onTap(flags)
+            }
             .onLongPressGesture(perform: onLongPress)
             .onHover { hovering in
                 isHovered = hovering

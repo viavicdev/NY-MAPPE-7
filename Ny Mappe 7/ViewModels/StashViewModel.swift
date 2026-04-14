@@ -67,6 +67,8 @@ final class StashViewModel: ObservableObject {
     }
     @Published var pathEntries: [PathEntry] = []
     @Published var selectedPathIds: Set<UUID> = []
+    @Published var lastSelectedPathId: UUID?
+    @Published var lastSelectedClipboardId: UUID?
     @Published var autoCleanupFilesDays: Int? = nil
     @Published var autoCleanupClipboardDays: Int? = nil
     @Published var autoCleanupPathsDays: Int? = nil
@@ -251,6 +253,7 @@ final class StashViewModel: ObservableObject {
         }
 
         performAutoCleanup()
+        migrateLegacyBundleFiles()
 
         // Ensure default set exists
         if sets.isEmpty {
@@ -651,12 +654,47 @@ final class StashViewModel: ObservableObject {
         scheduleSave()
     }
 
+    /// T\u{00F8}mmer alle ikke-festede items i en gruppe. For nil = "Usortert".
+    /// Selve gruppa beholdes. Festede items p\u{00E5}virkes aldri.
+    func clearClipboardGroup(id: UUID?) {
+        let knownGroupIds = Set(clipboardGroups.map { $0.id })
+        let idsToRemove: Set<UUID> = Set(clipboardEntries.compactMap { entry in
+            guard !entry.isPinned else { return nil }
+            if let gid = id {
+                return entry.groupId == gid ? entry.id : nil
+            } else {
+                // Usortert: ingen gruppe eller orphaned groupId
+                guard let g = entry.groupId else { return entry.id }
+                return knownGroupIds.contains(g) ? nil : entry.id
+            }
+        })
+        guard !idsToRemove.isEmpty else { return }
+        clipboardEntries.removeAll { idsToRemove.contains($0.id) }
+        selectedClipboardIds.subtract(idsToRemove)
+        scheduleSave()
+    }
+
     func toggleClipboardSelection(_ entryId: UUID) {
         if selectedClipboardIds.contains(entryId) {
             selectedClipboardIds.remove(entryId)
         } else {
             selectedClipboardIds.insert(entryId)
         }
+        lastSelectedClipboardId = entryId
+    }
+
+    /// Velger alle entries fra lastSelectedClipboardId til `id` i synlig rekkefølge.
+    /// View-laget eier rekkefølgen (pga grupper) og sender den inn via orderedIds.
+    func selectRangeInClipboard(to id: UUID, orderedIds: [UUID]) {
+        guard let anchor = lastSelectedClipboardId,
+              let fromIdx = orderedIds.firstIndex(of: anchor),
+              let toIdx = orderedIds.firstIndex(of: id) else {
+            selectedClipboardIds.insert(id)
+            lastSelectedClipboardId = id
+            return
+        }
+        let range = orderedIds[min(fromIdx, toIdx)...max(fromIdx, toIdx)]
+        selectedClipboardIds.formUnion(range)
     }
 
     func copyClipboardEntry(_ entry: ClipboardEntry) {
@@ -704,6 +742,43 @@ final class StashViewModel: ObservableObject {
         let combined = blocks.joined(separator: separator)
         copyTextToPasteboard(combined)
         selectedClipboardIds.removeAll()
+    }
+
+    /// Kopierer alle ikke-festede items i en gruppe som \u{00E9}n tekstblokk.
+    /// id == nil betyr "Usortert" (entries uten groupId, eller groupId som peker til slettet gruppe).
+    func copyClipboardGroup(id: UUID?) {
+        let knownGroupIds = Set(clipboardGroups.map { $0.id })
+        let entries: [ClipboardEntry]
+        if let gid = id {
+            entries = clipboardEntries.filter { !$0.isPinned && $0.groupId == gid }
+        } else {
+            entries = clipboardEntries.filter { entry in
+                guard !entry.isPinned else { return false }
+                guard let g = entry.groupId else { return true }
+                return !knownGroupIds.contains(g)
+            }
+        }
+        guard !entries.isEmpty else { return }
+
+        // Respekter samme separator og header-setting som enkelt-kopier
+        let blanks = max(0, clipboardCopyBlankLines)
+        let separator = String(repeating: "\n", count: blanks + 1)
+        let body = entries.map { $0.text }.joined(separator: separator)
+
+        let combined: String
+        if clipboardIncludeGroupHeader, let gid = id,
+           let group = clipboardGroups.first(where: { $0.id == gid }) {
+            combined = group.name.uppercased() + "\n" + body
+        } else {
+            combined = body
+        }
+        copyTextToPasteboard(combined)
+        // copyTextToPasteboard setter "Kopiert!"-toast; overstyr med gruppenavnet
+        if let gid = id, let group = clipboardGroups.first(where: { $0.id == gid }) {
+            showToast("\(group.name) kopiert!")
+        } else {
+            showToast("Usortert kopiert!")
+        }
     }
 
     func exportSelectedClipboardEntries() {
@@ -1006,6 +1081,8 @@ final class StashViewModel: ObservableObject {
         if activeContextBundleId == id {
             activeContextBundleId = contextBundles.first?.id
         }
+        // Fjern bundlens egne filer fra disk
+        persistence.removeBundleStorage(for: id)
         scheduleSave()
     }
 
@@ -1014,16 +1091,64 @@ final class StashViewModel: ObservableObject {
         scheduleSave()
     }
 
-    func addFileToBundle(bundleId: UUID, stashItemId: UUID) {
-        guard let idx = contextBundles.firstIndex(where: { $0.id == bundleId }) else { return }
-        // Unngå duplikat — samme stashItemId i samme bundle ignoreres
-        let alreadyIn = contextBundles[idx].items.contains { item in
-            if case .file(_, let sid) = item, sid == stashItemId { return true }
-            return false
+    /// Kopierer fila fra sourceURL inn i bundlens egen lagring. Bundlen blir
+    /// selvstendig \u{2014} sletting i Filer-fanen p\u{00E5}virker ikke bundles.
+    @discardableResult
+    func addLocalFileToBundle(bundleId: UUID, sourceURL: URL) -> UUID? {
+        guard let idx = contextBundles.firstIndex(where: { $0.id == bundleId }) else { return nil }
+        let dir = persistence.bundleStorageURL(for: bundleId)
+        let originalName = sourceURL.lastPathComponent
+
+        // H\u{00E5}ndter navne-kollisjoner: brief.pdf \u{2192} brief-1.pdf \u{2192} brief-2.pdf
+        let finalName = uniqueFilename(in: dir, for: originalName)
+        let destURL = dir.appendingPathComponent(finalName)
+
+        let fm = FileManager.default
+        do {
+            if fm.fileExists(atPath: destURL.path) {
+                try fm.removeItem(at: destURL)
+            }
+            try fm.copyItem(at: sourceURL, to: destURL)
+        } catch {
+            errorMessage = "Kunne ikke kopiere \(originalName) til bundle: \(error.localizedDescription)"
+            showError = true
+            return nil
         }
-        if alreadyIn { return }
-        contextBundles[idx].items.append(.file(id: UUID(), stashItemId: stashItemId))
+
+        let size = (try? fm.attributesOfItem(atPath: destURL.path)[.size] as? NSNumber)?.int64Value ?? 0
+        let newId = UUID()
+        contextBundles[idx].items.append(.localFile(
+            id: newId,
+            fileName: finalName,
+            sizeBytes: size,
+            dateAdded: Date()
+        ))
         scheduleSave()
+        return newId
+    }
+
+    /// Genererer et unikt filnavn ved \u{00E5} legge til -1, -2 osv. dersom kollisjon.
+    private func uniqueFilename(in dir: URL, for name: String) -> String {
+        let fm = FileManager.default
+        let url = dir.appendingPathComponent(name)
+        if !fm.fileExists(atPath: url.path) { return name }
+
+        let ext = (name as NSString).pathExtension
+        let stem = (name as NSString).deletingPathExtension
+        var i = 1
+        while true {
+            let candidate = ext.isEmpty ? "\(stem)-\(i)" : "\(stem)-\(i).\(ext)"
+            if !fm.fileExists(atPath: dir.appendingPathComponent(candidate).path) {
+                return candidate
+            }
+            i += 1
+        }
+    }
+
+    /// Deprecated: Legacy API for kompatibilitet. Ny kode skal bruke addLocalFileToBundle.
+    func addFileToBundle(bundleId: UUID, stashItemId: UUID) {
+        guard let stashItem = items.first(where: { $0.id == stashItemId }) else { return }
+        addLocalFileToBundle(bundleId: bundleId, sourceURL: stashItem.stagedURL)
     }
 
     @discardableResult
@@ -1050,25 +1175,45 @@ final class StashViewModel: ObservableObject {
 
     func removeBundleItem(bundleId: UUID, itemId: UUID) {
         guard let idx = contextBundles.firstIndex(where: { $0.id == bundleId }) else { return }
+        // Hvis det er en lokal fil, slett ogs\u{00E5} fila fra bundle-lagringen
+        if let item = contextBundles[idx].items.first(where: { $0.id == itemId }) {
+            if case .localFile(_, let fileName, _, _) = item {
+                let fileURL = persistence.bundleStorageURL(for: bundleId)
+                    .appendingPathComponent(fileName)
+                try? FileManager.default.removeItem(at: fileURL)
+            }
+        }
         contextBundles[idx].items.removeAll { $0.id == itemId }
         scheduleSave()
     }
 
-    /// Resolver alle .file-items i bundlen til faktiske URLs på disk.
-    /// Hopper over items hvor StashItem ikke lenger finnes (slettet etter at det ble lagt til).
+    /// Returnerer URLs til filene i bundlen. For .localFile peker til bundle-lagringen.
+    /// Legacy .file-items (referanser til StashItem) skal ha blitt migrert til .localFile
+    /// ved loadState; om noen har overlevd migreringen, skippes de her.
     func bundleFileURLs(bundleId: UUID) -> [URL] {
         guard let bundle = contextBundles.first(where: { $0.id == bundleId }) else { return [] }
+        let storageDir = persistence.bundleStorageURL(for: bundleId)
         var urls: [URL] = []
         for item in bundle.items {
-            if case .file(_, let sid) = item,
-               let stashItem = items.first(where: { $0.id == sid }) {
-                urls.append(stashItem.stagedURL)
+            switch item {
+            case .localFile(_, let fileName, _, _):
+                let url = storageDir.appendingPathComponent(fileName)
+                if FileManager.default.fileExists(atPath: url.path) {
+                    urls.append(url)
+                }
+            case .file(_, let sid):
+                // Legacy-fallback: kun hvis migrering ikke klarte \u{00E5} flytte den
+                if let stashItem = items.first(where: { $0.id == sid }) {
+                    urls.append(stashItem.stagedURL)
+                }
+            case .text:
+                continue
             }
         }
         return urls
     }
 
-    /// Bygger en strukturert tekstdump av bundlen, klar til å limes inn i en chat.
+    /// Bygger en strukturert tekstdump av bundlen, klar til \u{00E5} limes inn i en chat.
     func bundleAsCombinedText(bundleId: UUID) -> String {
         guard let bundle = contextBundles.first(where: { $0.id == bundleId }) else { return "" }
 
@@ -1094,12 +1239,18 @@ final class StashViewModel: ObservableObject {
             sections.append(snippetBlock)
         }
 
-        let fileNames: [String] = bundle.items.compactMap { item in
-            if case .file(_, let sid) = item,
-               let stashItem = items.first(where: { $0.id == sid }) {
-                return stashItem.fileName
+        var fileNames: [String] = []
+        for item in bundle.items {
+            switch item {
+            case .localFile(_, let fileName, _, _):
+                fileNames.append(fileName)
+            case .file(_, let sid):
+                if let stashItem = items.first(where: { $0.id == sid }) {
+                    fileNames.append(stashItem.fileName)
+                }
+            case .text:
+                continue
             }
-            return nil
         }
         if !fileNames.isEmpty {
             var fileBlock = "### Vedlagte filer\n"
@@ -1356,6 +1507,21 @@ final class StashViewModel: ObservableObject {
         } else {
             selectedPathIds.insert(entryId)
         }
+        lastSelectedPathId = entryId
+    }
+
+    /// Velger alle paths mellom lastSelectedPathId og `id` i synlig rekkef\u{00F8}lge.
+    func selectRangeInPaths(to id: UUID) {
+        let ids = pathEntries.map { $0.id }
+        guard let anchor = lastSelectedPathId,
+              let fromIdx = ids.firstIndex(of: anchor),
+              let toIdx = ids.firstIndex(of: id) else {
+            selectedPathIds.insert(id)
+            lastSelectedPathId = id
+            return
+        }
+        let range = ids[min(fromIdx, toIdx)...max(fromIdx, toIdx)]
+        selectedPathIds.formUnion(range)
     }
 
     func selectAllPathEntries() {
@@ -1464,6 +1630,60 @@ final class StashViewModel: ObservableObject {
             selectedItemIds.removeAll()
             selectedClipboardIds.removeAll()
             selectedPathIds.removeAll()
+            scheduleSave()
+        }
+    }
+
+    /// Migrerer legacy `.file(id:, stashItemId:)`-items i bundles til `.localFile` ved \u{00E5}
+    /// kopiere StashItem-fila inn i bundlens egen mappe. K\u{00F8}res p\u{00E5} hver loadState \u{2014}
+    /// er en no-op hvis det ikke finnes legacy-items.
+    private func migrateLegacyBundleFiles() {
+        var changed = false
+        let fm = FileManager.default
+
+        for bIdx in contextBundles.indices {
+            let bundleId = contextBundles[bIdx].id
+            var newItems: [BundleItem] = []
+
+            for item in contextBundles[bIdx].items {
+                guard case .file(_, let stashItemId) = item else {
+                    newItems.append(item)
+                    continue
+                }
+
+                // Legacy-item \u{2014} pr\u{00F8}v \u{00E5} migrere
+                guard let stashItem = items.first(where: { $0.id == stashItemId }) else {
+                    // Orphan: StashItem finnes ikke lenger, dropper item-et
+                    changed = true
+                    continue
+                }
+
+                let dir = persistence.bundleStorageURL(for: bundleId)
+                let finalName = uniqueFilename(in: dir, for: stashItem.fileName)
+                let destURL = dir.appendingPathComponent(finalName)
+
+                do {
+                    try fm.copyItem(at: stashItem.stagedURL, to: destURL)
+                    let size = (try? fm.attributesOfItem(atPath: destURL.path)[.size] as? NSNumber)?.int64Value ?? 0
+                    newItems.append(.localFile(
+                        id: item.id,
+                        fileName: finalName,
+                        sizeBytes: size,
+                        dateAdded: Date()
+                    ))
+                    changed = true
+                } catch {
+                    // Klarte ikke kopiere; behold legacy-referansen som fallback
+                    newItems.append(item)
+                }
+            }
+
+            if changed {
+                contextBundles[bIdx].items = newItems
+            }
+        }
+
+        if changed {
             scheduleSave()
         }
     }

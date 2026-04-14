@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct ClipboardListView: View {
     @ObservedObject var viewModel: StashViewModel
@@ -496,8 +497,9 @@ struct ClipboardListView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 6) {
                 let sections = groupSections
+                let orderedIds = sections.flatMap { $0.entries.map(\.id) }
                 ForEach(sections) { section in
-                    groupSectionView(section)
+                    groupSectionView(section, orderedIds: orderedIds)
                 }
 
                 if sections.allSatisfy({ $0.entries.isEmpty }) && !viewModel.clipboardSearchText.isEmpty {
@@ -514,7 +516,7 @@ struct ClipboardListView: View {
     }
 
     @ViewBuilder
-    private func groupSectionView(_ section: GroupSection) -> some View {
+    private func groupSectionView(_ section: GroupSection, orderedIds: [UUID]) -> some View {
         // Aktiv-sjekk: en konkret gruppe er aktiv hvis IDen matcher,
         // OG "Ingen gruppe"-seksjonen er aktiv hvis activeClipboardGroupId == nil.
         // Pinned-seksjonen kan aldri være aktiv mål.
@@ -549,6 +551,7 @@ struct ClipboardListView: View {
                                 entry: entry,
                                 isSelected: viewModel.selectedClipboardIds.contains(entry.id),
                                 isCompact: viewModel.isLightVersion,
+                                orderedIds: orderedIds,
                                 viewModel: viewModel
                             )
                             .frame(maxHeight: .infinity, alignment: .top)
@@ -683,7 +686,39 @@ struct ClipboardListView: View {
                 }
             }
 
-            // Action-knapper (kun for ekte grupper, ikke under rename)
+            // Kopier-gruppe-knapp (vises for alle ikke-pinned seksjoner som har items)
+            if !section.isPinnedSection, renamingGroupId != section.group?.id {
+                Button(action: {
+                    viewModel.copyClipboardGroup(id: section.group?.id)
+                }) {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 9))
+                        .foregroundColor(Design.subtleText.opacity(0.6))
+                        .padding(3)
+                }
+                .buttonStyle(.plain)
+                .help("Kopier alle i denne gruppa")
+                .disabled(section.entries.isEmpty)
+                .opacity(section.entries.isEmpty ? 0.3 : 1.0)
+
+                // T\u{00F8}m-seksjon-knapp (sletter alle items i gruppa, beholder selve gruppa)
+                Button(action: {
+                    withAnimation { viewModel.clearClipboardGroup(id: section.group?.id) }
+                }) {
+                    Image(systemName: "eraser")
+                        .font(.system(size: 9))
+                        .foregroundColor(Design.subtleText.opacity(0.6))
+                        .padding(3)
+                }
+                .buttonStyle(.plain)
+                .help(section.group == nil
+                      ? "T\u{00F8}m Usortert (sletter alle ugrupperte utklipp)"
+                      : "T\u{00F8}m denne gruppa (sletter alle items, beholder gruppa)")
+                .disabled(section.entries.isEmpty)
+                .opacity(section.entries.isEmpty ? 0.3 : 1.0)
+            }
+
+            // Rename + slett (kun for ekte grupper, ikke under rename)
             if let group = section.group, renamingGroupId != group.id {
                 Button(action: { startRenameGroup(group) }) {
                     Image(systemName: "pencil")
@@ -839,6 +874,7 @@ struct ClipboardCard: View {
     let entry: ClipboardEntry
     let isSelected: Bool
     let isCompact: Bool
+    let orderedIds: [UUID]
     @ObservedObject var viewModel: StashViewModel
     @State private var isHovered = false
     @State private var isExpanded = false
@@ -946,8 +982,13 @@ struct ClipboardCard: View {
             flashCopied()
         }
         .onTapGesture(count: 1) {
+            let flags = NSApp.currentEvent?.modifierFlags ?? []
             withAnimation(.easeInOut(duration: 0.1)) {
-                viewModel.toggleClipboardSelection(entry.id)
+                if flags.contains(.shift) {
+                    viewModel.selectRangeInClipboard(to: entry.id, orderedIds: orderedIds)
+                } else {
+                    viewModel.toggleClipboardSelection(entry.id)
+                }
             }
         }
         .onDrag {
