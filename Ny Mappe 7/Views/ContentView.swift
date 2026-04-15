@@ -383,6 +383,21 @@ struct ContentView: View {
 
             Spacer()
 
+            // View-kontroller (grid/liste + st\u{00F8}rrelse) \u{2014} per fane
+            if viewModel.activeTab == .files {
+                ViewControlsButton(
+                    mode: $viewModel.filesViewMode,
+                    size: $viewModel.filesViewSize,
+                    onChange: { viewModel.scheduleSave() }
+                )
+            } else if viewModel.activeTab == .clipboard {
+                ViewControlsButton(
+                    mode: $viewModel.clipboardViewMode,
+                    size: $viewModel.clipboardViewSize,
+                    onChange: { viewModel.scheduleSave() }
+                )
+            }
+
             if viewModel.activeTab == .files && !viewModel.currentItems.isEmpty {
                 Menu {
                     Button(action: { viewModel.zipItems() }) {
