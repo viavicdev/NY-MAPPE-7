@@ -10,6 +10,7 @@ struct ContextBundlesView: View {
     @FocusState private var newBundleFocused: Bool
     @State private var renamingBundleId: UUID?
     @State private var renameBuffer = ""
+    @FocusState private var isRenameFocused: Bool
     @State private var dropTargeted = false
 
     private var sortedBundles: [ContextBundle] {
@@ -33,138 +34,229 @@ struct ContextBundlesView: View {
     // MARK: - Bundle selector (horizontal pills)
 
     private var bundleSelector: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 5) {
-                if showNewBundleField {
-                    HStack(spacing: 4) {
-                        TextField("Bundlenavn\u{2026}", text: $newBundleName)
-                            .textFieldStyle(.plain)
-                            .font(.system(size: 10, design: .rounded))
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 4)
-                            .background(Design.buttonTint)
-                            .clipShape(Capsule())
-                            .overlay(
-                                Capsule().stroke(Design.accent.opacity(0.4), lineWidth: 0.6)
-                            )
-                            .focused($newBundleFocused)
-                            .onSubmit { commitNewBundle() }
-                            .frame(maxWidth: 130)
+        HStack(spacing: 0) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 2) {
+                    if showNewBundleField {
+                        HStack(spacing: 4) {
+                            TextField("Bundlenavn\u{2026}", text: $newBundleName)
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 10, design: .rounded))
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 4)
+                                .background(Design.buttonTint)
+                                .clipShape(RoundedRectangle(cornerRadius: 5))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 5)
+                                        .stroke(Design.accent.opacity(0.4), lineWidth: 0.6)
+                                )
+                                .focused($newBundleFocused)
+                                .onSubmit { commitNewBundle() }
+                                .frame(maxWidth: 130)
 
-                        Button(action: commitNewBundle) {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(Design.accent)
-                                .padding(4)
+                            Button(action: commitNewBundle) {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundColor(Design.accent)
+                                    .padding(3)
+                            }
+                            .buttonStyle(.plain)
+
+                            Button(action: { cancelNewBundle() }) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundColor(Design.subtleText)
+                                    .padding(3)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.leading, 6)
+                    } else {
+                        // "+ Bundle" som f\u{00F8}rste tab-entry
+                        Button(action: {
+                            showNewBundleField = true
+                            newBundleFocused = true
+                        }) {
+                            HStack(spacing: 3) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 9, weight: .bold))
+                                Text("Bundle")
+                                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                            }
+                            .foregroundColor(Design.accent)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
                         }
                         .buttonStyle(.plain)
-
-                        Button(action: { cancelNewBundle() }) {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(Design.subtleText)
-                                .padding(4)
-                        }
-                        .buttonStyle(.plain)
+                        .help("Lag ny bundle")
                     }
-                } else {
-                    Button(action: {
-                        showNewBundleField = true
-                        newBundleFocused = true
-                    }) {
-                        HStack(spacing: 3) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 9, weight: .bold))
-                            Text("Bundle")
-                                .font(.system(size: 10, weight: .medium, design: .rounded))
+
+                    ForEach(sortedBundles) { bundle in
+                        bundleTab(bundle)
+                    }
+                }
+                .padding(.horizontal, 4)
+            }
+
+            // Action-knapper p\u{00E5} h\u{00F8}yre side \u{2014} gjelder aktiv bundle
+            if let active = viewModel.activeContextBundle {
+                HStack(spacing: 2) {
+                    // + meny: legg til snippet eller filer
+                    Menu {
+                        Button(action: {
+                            _ = viewModel.addTextToBundle(bundleId: active.id, title: "", body: "")
+                        }) {
+                            Label("Tekstsnippet", systemImage: "text.alignleft")
                         }
-                        .foregroundColor(Design.accent)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Design.accent.opacity(0.12))
-                        .clipShape(Capsule())
-                        .overlay(Capsule().stroke(Design.accent.opacity(0.3), lineWidth: 0.5))
+                        Button(action: {
+                            openFilePickerForBundle(bundleId: active.id)
+                        }) {
+                            Label("Velg filer\u{2026}", systemImage: "doc")
+                        }
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(Design.accent)
+                            .frame(width: 18, height: 18)
+                            .background(Design.accent.opacity(0.12))
+                            .clipShape(Circle())
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .help("Legg til innhold")
+
+                    Button(action: {
+                        renamingBundleId = active.id
+                        renameBuffer = active.name
+                    }) {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 9))
+                            .foregroundColor(Design.subtleText)
+                            .frame(width: 18, height: 18)
+                            .background(Design.buttonTint)
+                            .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
-                    .help("Lag ny bundle")
-                }
+                    .help("Gi bundlen nytt navn")
 
-                ForEach(sortedBundles) { bundle in
-                    bundlePill(bundle)
+                    Button(action: {
+                        withAnimation { viewModel.deleteContextBundle(id: active.id) }
+                    }) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 9))
+                            .foregroundColor(Design.subtleText)
+                            .frame(width: 18, height: 18)
+                            .background(Design.buttonTint)
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Slett bundle")
                 }
+                .padding(.trailing, 6)
+                .padding(.leading, 4)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
         }
+        .padding(.vertical, 4)
+        .overlay(
+            Rectangle()
+                .frame(height: 0.5)
+                .foregroundColor(Design.dividerColor),
+            alignment: .bottom
+        )
     }
 
     @ViewBuilder
-    private func bundlePill(_ bundle: ContextBundle) -> some View {
+    private func bundleTab(_ bundle: ContextBundle) -> some View {
         let isActive = viewModel.activeContextBundleId == bundle.id
         let urls = viewModel.bundleFileURLs(bundleId: bundle.id)
         let hasFiles = !urls.isEmpty
+        let isRenaming = renamingBundleId == bundle.id
 
-        ZStack {
-            // Visuell stil
-            HStack(spacing: 4) {
-                if let icon = bundle.iconName {
-                    AppIcon(icon)
-                        .frame(width: 10, height: 10)
-                } else if hasFiles {
-                    // Liten drag-indikator viser at pillen kan dras
-                    Image(systemName: "arrow.up.doc.on.clipboard")
-                        .font(.system(size: 8, weight: .medium))
-                        .opacity(0.7)
+        VStack(spacing: 0) {
+            ZStack {
+                HStack(spacing: 4) {
+                    if let icon = bundle.iconName {
+                        AppIcon(icon)
+                            .frame(width: 10, height: 10)
+                    }
+                    if isRenaming {
+                        TextField("Navn", text: $renameBuffer)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                            .foregroundColor(Design.accent)
+                            .focused($isRenameFocused)
+                            .onSubmit { commitRenameBundle() }
+                            .frame(minWidth: 60, maxWidth: 140)
+                    } else {
+                        Text(bundle.name)
+                            .font(.system(size: 10, weight: isActive ? .bold : .medium, design: .rounded))
+                        if bundle.items.count > 0 {
+                            Text("\(bundle.items.count)")
+                                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(isActive ? Design.accent.opacity(0.2) : Design.buttonTint)
+                                .clipShape(Capsule())
+                        }
+                    }
                 }
-                Text(bundle.name)
-                    .font(.system(size: 10, weight: isActive ? .bold : .medium, design: .rounded))
-                if bundle.items.count > 0 {
-                    Text("\(bundle.items.count)")
-                        .font(.system(size: 8, weight: .bold, design: .monospaced))
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
-                        .background(isActive ? Design.accent.opacity(0.25) : Design.buttonTint)
-                        .clipShape(Capsule())
+                .foregroundColor(isActive ? Design.accent : Design.subtleText)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .allowsHitTesting(isRenaming)
+
+                if !isRenaming {
+                    DraggableCardWrapper(
+                        urls: urls,
+                        onClick: { _ in
+                            viewModel.setActiveContextBundle(bundle.id)
+                        }
+                    )
                 }
             }
-            .foregroundColor(isActive ? Design.accent : Design.subtleText)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 4)
-            .background(isActive ? Design.accent.opacity(0.12) : Design.buttonTint)
-            .clipShape(Capsule())
-            .overlay(
-                Capsule().stroke(
-                    isActive ? Design.accent.opacity(0.35) : Design.buttonBorder,
-                    lineWidth: 0.5
-                )
-            )
-            .allowsHitTesting(false)
 
-            // Usynlig NSView som fanger klikk + drag oppå pillen
-            DraggableCardWrapper(
-                urls: urls,
-                onClick: { _ in
-                    viewModel.setActiveContextBundle(bundle.id)
-                }
-            )
+            // Underline-indikator for aktiv tab
+            Rectangle()
+                .frame(height: 2)
+                .foregroundColor(isActive ? Design.accent : Color.clear)
+                .cornerRadius(1)
+                .padding(.horizontal, 6)
         }
         .fixedSize()
         .help(hasFiles
-              ? "Klikk for å sette aktiv. Dra for å eksportere \(urls.count) fil\(urls.count == 1 ? "" : "er") til en annen app."
-              : "Klikk for å sette aktiv")
+              ? "Klikk for \u{00E5} sette aktiv. Dra for \u{00E5} eksportere \(urls.count) fil\(urls.count == 1 ? "" : "er") til en annen app."
+              : "Klikk for \u{00E5} sette aktiv")
         .contextMenu {
-            Button("Sett som aktiv") {
-                viewModel.setActiveContextBundle(bundle.id)
-            }
-            Button("Gi nytt navn\u{2026}") {
-                renamingBundleId = bundle.id
-                renameBuffer = bundle.name
-            }
-            Divider()
-            Button("Slett bundle", role: .destructive) {
-                withAnimation { viewModel.deleteContextBundle(id: bundle.id) }
+            if !isRenaming {
+                Button("Sett som aktiv") {
+                    viewModel.setActiveContextBundle(bundle.id)
+                }
+                Button("Gi nytt navn\u{2026}") {
+                    startRenameBundle(bundle)
+                }
+                Divider()
+                Button("Slett bundle", role: .destructive) {
+                    withAnimation { viewModel.deleteContextBundle(id: bundle.id) }
+                }
             }
         }
+    }
+
+    private func startRenameBundle(_ bundle: ContextBundle) {
+        viewModel.setActiveContextBundle(bundle.id)
+        renamingBundleId = bundle.id
+        renameBuffer = bundle.name
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            isRenameFocused = true
+        }
+    }
+
+    private func commitRenameBundle() {
+        guard let id = renamingBundleId else { return }
+        viewModel.renameContextBundle(id: id, name: renameBuffer)
+        renamingBundleId = nil
+        renameBuffer = ""
     }
 
     // MARK: - Empty state
@@ -202,8 +294,6 @@ struct ContextBundlesView: View {
     @ViewBuilder
     private func bundleDetail(_ bundle: ContextBundle) -> some View {
         VStack(spacing: 0) {
-            bundleHeader(bundle)
-
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     if bundle.textItemCount > 0 {
@@ -267,93 +357,6 @@ struct ContextBundlesView: View {
             Divider()
             bundleFooter(bundle)
         }
-    }
-
-    @ViewBuilder
-    private func bundleHeader(_ bundle: ContextBundle) -> some View {
-        HStack(spacing: 6) {
-            if renamingBundleId == bundle.id {
-                TextField("Navn", text: $renameBuffer)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundColor(Design.primaryText)
-                    .onSubmit { commitRename() }
-                Button(action: commitRename) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 11))
-                        .foregroundColor(Design.accent)
-                }
-                .buttonStyle(.plain)
-            } else {
-                Text(bundle.name)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundColor(Design.primaryText)
-
-                Text("\(bundle.fileItemCount) fil\(bundle.fileItemCount == 1 ? "" : "er") \u{00B7} \(bundle.textItemCount) snippet\(bundle.textItemCount == 1 ? "" : "s")")
-                    .font(.system(size: 9, design: .rounded))
-                    .foregroundColor(Design.subtleText.opacity(0.7))
-            }
-
-            Spacer()
-
-            if renamingBundleId != bundle.id {
-                // + meny: legg til snippet eller filer
-                Menu {
-                    Button(action: {
-                        _ = viewModel.addTextToBundle(bundleId: bundle.id, title: "", body: "")
-                    }) {
-                        Label("Tekstsnippet", systemImage: "text.alignleft")
-                    }
-                    Button(action: {
-                        openFilePickerForBundle(bundleId: bundle.id)
-                    }) {
-                        Label("Velg filer\u{2026}", systemImage: "doc")
-                    }
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(Design.accent)
-                        .frame(width: 22, height: 22)
-                        .background(Design.accent.opacity(0.12))
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(Design.accent.opacity(0.3), lineWidth: 0.5))
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
-                .help("Legg til tekstsnippet eller fil")
-
-                Button(action: {
-                    renamingBundleId = bundle.id
-                    renameBuffer = bundle.name
-                }) {
-                    Image(systemName: "pencil")
-                        .font(.system(size: 10))
-                        .foregroundColor(Design.subtleText)
-                        .frame(width: 22, height: 22)
-                        .background(Design.buttonTint)
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .help("Gi bundlen nytt navn")
-
-                Button(action: {
-                    withAnimation { viewModel.deleteContextBundle(id: bundle.id) }
-                }) {
-                    Image(systemName: "trash")
-                        .font(.system(size: 10))
-                        .foregroundColor(Design.subtleText)
-                        .frame(width: 22, height: 22)
-                        .background(Design.buttonTint)
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .help("Slett bundle")
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(Design.headerSurface)
     }
 
     private func sectionHeader(_ title: String, systemImage: String, count: Int) -> some View {
@@ -713,13 +716,6 @@ struct ContextBundlesView: View {
     private func cancelNewBundle() {
         showNewBundleField = false
         newBundleName = ""
-    }
-
-    private func commitRename() {
-        guard let id = renamingBundleId else { return }
-        viewModel.renameContextBundle(id: id, name: renameBuffer)
-        renamingBundleId = nil
-        renameBuffer = ""
     }
 
     /// Drop fra Finder: kopier filene rett inn i bundle-lagringen.
