@@ -61,15 +61,15 @@ struct AppState: Codable {
         promptCategories: [PromptCategory] = [],
         activePromptCategoryId: UUID? = nil,
         filesViewMode: ViewMode = .grid,
-        filesViewSize: Double = 0.5,
+        filesViewSize: Double = 0.3,
         clipboardViewMode: ViewMode = .grid,
-        clipboardViewSize: Double = 0.5,
+        clipboardViewSize: Double = 0.3,
         pathsViewMode: ViewMode = .list,
-        pathsViewSize: Double = 0.5,
+        pathsViewSize: Double = 0.3,
         screenshotsViewMode: ViewMode = .grid,
-        screenshotsViewSize: Double = 0.5,
+        screenshotsViewSize: Double = 0.3,
         bundlesViewMode: ViewMode = .grid,
-        bundlesViewSize: Double = 0.5
+        bundlesViewSize: Double = 0.3
     ) {
         self.sets = sets
         self.items = items

@@ -19,12 +19,13 @@ struct CardsGridView: View {
 
     /// Mapper size 0.0\u{2013}1.0 til grid-kolonne-minimum.
     private var gridColumnMinimum: CGFloat {
-        // St\u{00F8}rrelse 0 = 110px min, 1.0 = 260px min
-        110 + CGFloat(currentSize) * 150
+        // St\u{00F8}rrelse 0 = 80px min (veldig kompakt), 1.0 = 220px min (stort)
+        // Default 0.5 = 150px \u{2192} 2 kol i 380px light-panel, 2-3 kol i 480px full
+        80 + CGFloat(currentSize) * 140
     }
 
     private var adaptiveColumns: [GridItem] {
-        [GridItem(.adaptive(minimum: gridColumnMinimum, maximum: gridColumnMinimum + 60), spacing: Design.gridSpacing)]
+        [GridItem(.adaptive(minimum: gridColumnMinimum, maximum: gridColumnMinimum + 40), spacing: Design.gridSpacing)]
     }
 
     var body: some View {

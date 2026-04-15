@@ -15,7 +15,7 @@ set -e
 APP_NAME="Ny Mappe (7) v2"
 EXECUTABLE="NyMappa7"
 MIN_MACOS="13.0"
-VERSION="5.7"
+VERSION="5.8"
 
 # ── Code Signing & Notarization ──────────────────────────
 # Fill in these values from your Apple Developer account:
