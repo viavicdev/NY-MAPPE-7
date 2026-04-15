@@ -74,7 +74,7 @@ struct SettingsSheet: View {
                 Text("Ny Mappe (7)")
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundColor(Design.primaryText)
-                Text("v5.5")
+                Text("v5.6")
                     .font(.system(size: 9, weight: .medium, design: .monospaced))
                     .foregroundColor(Design.subtleText.opacity(0.5))
                     .padding(.horizontal, 5)

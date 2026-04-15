@@ -99,6 +99,12 @@ struct ContextBundlesView: View {
             // Action-knapper p\u{00E5} h\u{00F8}yre side \u{2014} gjelder aktiv bundle
             if let active = viewModel.activeContextBundle {
                 HStack(spacing: 2) {
+                    ViewControlsButton(
+                        mode: $viewModel.bundlesViewMode,
+                        size: $viewModel.bundlesViewSize,
+                        onChange: { viewModel.scheduleSave() }
+                    )
+
                     // + meny: legg til snippet eller filer
                     Menu {
                         Button(action: {
@@ -307,24 +313,51 @@ struct ContextBundlesView: View {
 
                     if bundle.fileItemCount > 0 {
                         sectionHeader("Filer", systemImage: "doc", count: bundle.fileItemCount)
-                        LazyVGrid(columns: [
-                            GridItem(.flexible(), spacing: 6),
-                            GridItem(.flexible(), spacing: 6),
-                            GridItem(.flexible(), spacing: 6)
-                        ], spacing: 6) {
-                            ForEach(bundle.items) { item in
-                                switch item {
-                                case .localFile(let id, let fileName, let sizeBytes, _):
-                                    localFileTile(
-                                        bundleId: bundle.id,
-                                        itemId: id,
-                                        fileName: fileName,
-                                        sizeBytes: sizeBytes
-                                    )
-                                case .file(let id, let stashItemId):
-                                    fileRow(bundleId: bundle.id, itemId: id, stashItemId: stashItemId)
-                                case .text:
-                                    EmptyView()
+                        if viewModel.bundlesViewMode == .list {
+                            LazyVStack(spacing: 3) {
+                                ForEach(bundle.items) { item in
+                                    switch item {
+                                    case .localFile(let id, let fileName, let sizeBytes, _):
+                                        localFileRowCompact(
+                                            bundleId: bundle.id,
+                                            itemId: id,
+                                            fileName: fileName,
+                                            sizeBytes: sizeBytes
+                                        )
+                                    case .file(let id, let stashItemId):
+                                        fileRow(bundleId: bundle.id, itemId: id, stashItemId: stashItemId)
+                                    case .text:
+                                        EmptyView()
+                                    }
+                                }
+                            }
+                        } else {
+                            // Antall kolonner styrt av size: 4 (liten) \u{2192} 1 (stor)
+                            let colCount: Int = {
+                                let s = viewModel.bundlesViewSize
+                                if s < 0.25 { return 4 }
+                                if s < 0.55 { return 3 }
+                                if s < 0.85 { return 2 }
+                                return 1
+                            }()
+                            LazyVGrid(
+                                columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: colCount),
+                                spacing: 6
+                            ) {
+                                ForEach(bundle.items) { item in
+                                    switch item {
+                                    case .localFile(let id, let fileName, let sizeBytes, _):
+                                        localFileTile(
+                                            bundleId: bundle.id,
+                                            itemId: id,
+                                            fileName: fileName,
+                                            sizeBytes: sizeBytes
+                                        )
+                                    case .file(let id, let stashItemId):
+                                        fileRow(bundleId: bundle.id, itemId: id, stashItemId: stashItemId)
+                                    case .text:
+                                        EmptyView()
+                                    }
                                 }
                             }
                         }
@@ -436,6 +469,61 @@ struct ContextBundlesView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 7).stroke(Design.borderColor, lineWidth: 0.5)
         )
+    }
+
+    /// Kompakt rad-layout for bundle-filer i list-modus.
+    @ViewBuilder
+    private func localFileRowCompact(bundleId: UUID, itemId: UUID, fileName: String, sizeBytes: Int64) -> some View {
+        let sizeStr = ByteCountFormatter.string(fromByteCount: sizeBytes, countStyle: .file)
+        let fileURL = viewModel.persistenceBundleStorageURL(for: bundleId)
+            .appendingPathComponent(fileName)
+        let ext = (fileName as NSString).pathExtension.lowercased()
+
+        HStack(spacing: 8) {
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(Design.subtleText.opacity(0.4))
+                .frame(width: 12)
+
+            Image(systemName: fileIconName(for: ext))
+                .font(.system(size: 11))
+                .foregroundColor(fileIconColor(for: ext))
+                .frame(width: 18)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(fileName)
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundColor(Design.primaryText)
+                    .lineLimit(1)
+                Text(sizeStr)
+                    .font(.system(size: 8, design: .monospaced))
+                    .foregroundColor(Design.subtleText.opacity(0.6))
+            }
+
+            Spacer()
+
+            Button(action: {
+                withAnimation { viewModel.removeBundleItem(bundleId: bundleId, itemId: itemId) }
+            }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9))
+                    .foregroundColor(Design.subtleText.opacity(0.6))
+                    .padding(3)
+            }
+            .buttonStyle(.plain)
+            .help("Fjern fra bundle")
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(Design.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6).stroke(Design.borderColor, lineWidth: 0.5)
+        )
+        .help("Dra inn i en annen app for \u{00E5} overf\u{00F8}re fila")
+        .onDrag {
+            NSItemProvider(contentsOf: fileURL) ?? NSItemProvider(object: fileURL as NSURL)
+        }
     }
 
     @ViewBuilder

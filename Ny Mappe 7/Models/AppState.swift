@@ -33,6 +33,8 @@ struct AppState: Codable {
     var pathsViewSize: Double
     var screenshotsViewMode: ViewMode
     var screenshotsViewSize: Double
+    var bundlesViewMode: ViewMode
+    var bundlesViewSize: Double
 
     init(
         sets: [StashSet] = [],
@@ -65,7 +67,9 @@ struct AppState: Codable {
         pathsViewMode: ViewMode = .list,
         pathsViewSize: Double = 0.5,
         screenshotsViewMode: ViewMode = .grid,
-        screenshotsViewSize: Double = 0.5
+        screenshotsViewSize: Double = 0.5,
+        bundlesViewMode: ViewMode = .grid,
+        bundlesViewSize: Double = 0.5
     ) {
         self.sets = sets
         self.items = items
@@ -98,6 +102,8 @@ struct AppState: Codable {
         self.pathsViewSize = pathsViewSize
         self.screenshotsViewMode = screenshotsViewMode
         self.screenshotsViewSize = screenshotsViewSize
+        self.bundlesViewMode = bundlesViewMode
+        self.bundlesViewSize = bundlesViewSize
     }
 
     // Support loading old state files that may use the old key name
@@ -114,6 +120,7 @@ struct AppState: Codable {
         case clipboardViewMode, clipboardViewSize
         case pathsViewMode, pathsViewSize
         case screenshotsViewMode, screenshotsViewSize
+        case bundlesViewMode, bundlesViewSize
     }
 
     init(from decoder: Decoder) throws {
@@ -149,5 +156,7 @@ struct AppState: Codable {
         pathsViewSize = try container.decodeIfPresent(Double.self, forKey: .pathsViewSize) ?? 0.5
         screenshotsViewMode = try container.decodeIfPresent(ViewMode.self, forKey: .screenshotsViewMode) ?? .grid
         screenshotsViewSize = try container.decodeIfPresent(Double.self, forKey: .screenshotsViewSize) ?? 0.5
+        bundlesViewMode = try container.decodeIfPresent(ViewMode.self, forKey: .bundlesViewMode) ?? .grid
+        bundlesViewSize = try container.decodeIfPresent(Double.self, forKey: .bundlesViewSize) ?? 0.5
     }
 }

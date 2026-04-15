@@ -107,7 +107,7 @@ struct HeaderView: View {
                     .menuStyle(.borderlessButton)
                     .fixedSize()
 
-                    ViewControls(
+                    ViewControlsButton(
                         mode: $viewModel.filesViewMode,
                         size: $viewModel.filesViewSize,
                         onChange: { viewModel.scheduleSave() }

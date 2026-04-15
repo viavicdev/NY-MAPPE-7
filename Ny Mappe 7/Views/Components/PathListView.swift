@@ -87,7 +87,7 @@ struct PathListView: View {
 
                     // Action row: st\u{00F8}rrelse-kontroll + kopier-knapp (kun st\u{00F8}rrelse-slider for Filsti)
                     HStack(spacing: 6) {
-                        ViewControls(
+                        ViewControlsButton(
                             mode: $viewModel.pathsViewMode,
                             size: $viewModel.pathsViewSize,
                             hideModeToggle: true,

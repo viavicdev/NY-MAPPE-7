@@ -69,6 +69,8 @@ final class StashViewModel: ObservableObject {
     @Published var pathsViewSize: Double = 0.5
     @Published var screenshotsViewMode: ViewMode = .grid
     @Published var screenshotsViewSize: Double = 0.5
+    @Published var bundlesViewMode: ViewMode = .grid
+    @Published var bundlesViewSize: Double = 0.5
 
     // Global toast (Kopiert!, Lagret! osv)
     @Published var toastMessage: String?
@@ -281,6 +283,8 @@ final class StashViewModel: ObservableObject {
             self.pathsViewSize = state.pathsViewSize
             self.screenshotsViewMode = state.screenshotsViewMode
             self.screenshotsViewSize = state.screenshotsViewSize
+            self.bundlesViewMode = state.bundlesViewMode
+            self.bundlesViewSize = state.bundlesViewSize
             // Alle eksisterende grupper starter ekspandert, samt "Ingen gruppe" (nil).
             self.expandedClipboardGroupIds = Set([nil] + state.clipboardGroups.map { Optional($0.id) })
 
@@ -354,7 +358,9 @@ final class StashViewModel: ObservableObject {
                 pathsViewMode: self.pathsViewMode,
                 pathsViewSize: self.pathsViewSize,
                 screenshotsViewMode: self.screenshotsViewMode,
-                screenshotsViewSize: self.screenshotsViewSize
+                screenshotsViewSize: self.screenshotsViewSize,
+                bundlesViewMode: self.bundlesViewMode,
+                bundlesViewSize: self.bundlesViewSize
             )
             self.persistence.saveState(state)
         }

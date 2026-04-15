@@ -1,9 +1,45 @@
 import SwiftUI
 
+/// Liten ikonknapp som \u{00E5}pner en popover med ViewControls (grid/liste + st\u{00F8}rrelse).
+/// Gir renere header ved at sliderne skjules bak en knapp til brukeren vil justere.
+struct ViewControlsButton: View {
+    @Binding var mode: ViewMode
+    @Binding var size: Double
+    var hideModeToggle: Bool = false
+    var onChange: () -> Void = {}
+
+    @State private var showPopover: Bool = false
+
+    var body: some View {
+        Button(action: { showPopover.toggle() }) {
+            Image(systemName: "slider.horizontal.3")
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(Design.subtleText)
+                .frame(width: 22, height: 18)
+                .background(Design.buttonTint)
+                .clipShape(RoundedRectangle(cornerRadius: 5))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5)
+                        .stroke(Design.buttonBorder, lineWidth: 0.5)
+                )
+        }
+        .buttonStyle(.plain)
+        .help("Visning")
+        .popover(isPresented: $showPopover, arrowEdge: .top) {
+            ViewControls(
+                mode: $mode,
+                size: $size,
+                hideModeToggle: hideModeToggle,
+                onChange: onChange
+            )
+            .padding(12)
+        }
+    }
+}
+
 /// Kompakt header-kontroll for \u{00E5} bytte mellom grid/liste-visning
-/// og justere st\u{00F8}rrelse p\u{00E5} elementene i en fane. Legges inline i fanens header.
-///
-/// Gjenbrukes p\u{00E5} tvers av Filer, Utklipp, Filsti og Skjermbilde.
+/// og justere st\u{00F8}rrelse p\u{00E5} elementene i en fane. Brukes som innhold i
+/// `ViewControlsButton`-popoveren.
 struct ViewControls: View {
     @Binding var mode: ViewMode
     @Binding var size: Double

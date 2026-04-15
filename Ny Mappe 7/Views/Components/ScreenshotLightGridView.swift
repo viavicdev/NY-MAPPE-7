@@ -26,7 +26,7 @@ struct ScreenshotLightGridView: View {
         VStack(spacing: 0) {
             HStack {
                 Spacer()
-                ViewControls(
+                ViewControlsButton(
                     mode: $viewModel.screenshotsViewMode,
                     size: $viewModel.screenshotsViewSize,
                     onChange: { viewModel.scheduleSave() }

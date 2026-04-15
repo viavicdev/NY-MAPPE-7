@@ -852,7 +852,7 @@ struct ClipboardListView: View {
                     .stroke(Design.borderColor, lineWidth: 0.5)
             )
 
-            ViewControls(
+            ViewControlsButton(
                 mode: $viewModel.clipboardViewMode,
                 size: $viewModel.clipboardViewSize,
                 onChange: { viewModel.scheduleSave() }
