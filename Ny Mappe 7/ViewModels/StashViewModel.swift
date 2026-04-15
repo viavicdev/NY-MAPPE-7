@@ -60,6 +60,16 @@ final class StashViewModel: ObservableObject {
     @Published var promptCategories: [PromptCategory] = []
     @Published var activePromptCategoryId: UUID?
 
+    // Visnings-preferanser per fane
+    @Published var filesViewMode: ViewMode = .grid
+    @Published var filesViewSize: Double = 0.5
+    @Published var clipboardViewMode: ViewMode = .grid
+    @Published var clipboardViewSize: Double = 0.5
+    @Published var pathsViewMode: ViewMode = .list
+    @Published var pathsViewSize: Double = 0.5
+    @Published var screenshotsViewMode: ViewMode = .grid
+    @Published var screenshotsViewSize: Double = 0.5
+
     // Global toast (Kopiert!, Lagret! osv)
     @Published var toastMessage: String?
     private var toastDismissTask: Task<Void, Never>?
@@ -263,6 +273,14 @@ final class StashViewModel: ObservableObject {
             self.activeContextBundleId = state.activeContextBundleId
             self.promptCategories = state.promptCategories
             self.activePromptCategoryId = state.activePromptCategoryId
+            self.filesViewMode = state.filesViewMode
+            self.filesViewSize = state.filesViewSize
+            self.clipboardViewMode = state.clipboardViewMode
+            self.clipboardViewSize = state.clipboardViewSize
+            self.pathsViewMode = state.pathsViewMode
+            self.pathsViewSize = state.pathsViewSize
+            self.screenshotsViewMode = state.screenshotsViewMode
+            self.screenshotsViewSize = state.screenshotsViewSize
             // Alle eksisterende grupper starter ekspandert, samt "Ingen gruppe" (nil).
             self.expandedClipboardGroupIds = Set([nil] + state.clipboardGroups.map { Optional($0.id) })
 
@@ -328,7 +346,15 @@ final class StashViewModel: ObservableObject {
                 contextBundles: self.contextBundles,
                 activeContextBundleId: self.activeContextBundleId,
                 promptCategories: self.promptCategories,
-                activePromptCategoryId: self.activePromptCategoryId
+                activePromptCategoryId: self.activePromptCategoryId,
+                filesViewMode: self.filesViewMode,
+                filesViewSize: self.filesViewSize,
+                clipboardViewMode: self.clipboardViewMode,
+                clipboardViewSize: self.clipboardViewSize,
+                pathsViewMode: self.pathsViewMode,
+                pathsViewSize: self.pathsViewSize,
+                screenshotsViewMode: self.screenshotsViewMode,
+                screenshotsViewSize: self.screenshotsViewSize
             )
             self.persistence.saveState(state)
         }

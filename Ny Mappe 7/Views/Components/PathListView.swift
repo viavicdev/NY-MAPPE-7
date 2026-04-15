@@ -85,11 +85,18 @@ struct PathListView: View {
                         .help("T\u{00F8}m alle (unntatt festede)")
                     }
 
-                    // Action row when items are selected
-                    if !viewModel.selectedPathIds.isEmpty {
-                        HStack {
-                            Spacer()
+                    // Action row: st\u{00F8}rrelse-kontroll + kopier-knapp (kun st\u{00F8}rrelse-slider for Filsti)
+                    HStack(spacing: 6) {
+                        ViewControls(
+                            mode: $viewModel.pathsViewMode,
+                            size: $viewModel.pathsViewSize,
+                            hideModeToggle: true,
+                            onChange: { viewModel.scheduleSave() }
+                        )
 
+                        Spacer()
+
+                        if !viewModel.selectedPathIds.isEmpty {
                             Button(action: {
                                 viewModel.copySelectedPathEntries()
                             }) {
@@ -114,7 +121,9 @@ struct PathListView: View {
                 pathEmptyState
             } else {
                 ScrollView {
-                    LazyVStack(spacing: 8) {
+                    // Rad-spacing skalerer med size-slider (2px \u{2192} 14px)
+                    let rowSpacing: CGFloat = 2 + CGFloat(viewModel.pathsViewSize) * 12
+                    LazyVStack(spacing: rowSpacing) {
                         let pinned = viewModel.pathEntries.filter { $0.isPinned }
                         let unpinned = viewModel.pathEntries.filter { !$0.isPinned }
 

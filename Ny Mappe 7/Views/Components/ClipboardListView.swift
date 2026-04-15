@@ -540,11 +540,26 @@ struct ClipboardListView: View {
                         .foregroundColor(Design.subtleText.opacity(0.5))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
+                } else if viewModel.clipboardViewMode == .list {
+                    LazyVStack(spacing: 3) {
+                        ForEach(section.entries) { entry in
+                            ClipboardListRow(
+                                entry: entry,
+                                isSelected: viewModel.selectedClipboardIds.contains(entry.id),
+                                orderedIds: orderedIds,
+                                viewModel: viewModel
+                            )
+                        }
+                    }
                 } else {
-                    let columns = [
-                        GridItem(.flexible(), spacing: 6),
-                        GridItem(.flexible(), spacing: 6)
-                    ]
+                    // Grid med dynamisk antall kolonner styrt av size-slider
+                    // size 0.0 = 3 kolonner (smal), 0.5 = 2 kolonner (standard), 1.0 = 1 kolonne (bred)
+                    let colCount: Int = viewModel.clipboardViewSize < 0.33 ? 3
+                        : viewModel.clipboardViewSize < 0.75 ? 2 : 1
+                    let columns = Array(
+                        repeating: GridItem(.flexible(), spacing: 6),
+                        count: colCount
+                    )
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 6) {
                         ForEach(section.entries) { entry in
                             ClipboardCard(
@@ -808,33 +823,41 @@ struct ClipboardListView: View {
     }
 
     private var clipboardSearchBar: some View {
-        HStack(spacing: 5) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 10))
-                .foregroundColor(Design.subtleText.opacity(0.5))
+        HStack(spacing: 6) {
+            HStack(spacing: 5) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 10))
+                    .foregroundColor(Design.subtleText.opacity(0.5))
 
-            TextField("S\u{00F8}k i utklipp\u{2026}", text: $viewModel.clipboardSearchText)
-                .font(.system(size: 11, design: .rounded))
-                .textFieldStyle(.plain)
-                .focused($isSearchFocused)
+                TextField("S\u{00F8}k i utklipp\u{2026}", text: $viewModel.clipboardSearchText)
+                    .font(.system(size: 11, design: .rounded))
+                    .textFieldStyle(.plain)
+                    .focused($isSearchFocused)
 
-            if !viewModel.clipboardSearchText.isEmpty {
-                Button(action: { viewModel.clipboardSearchText = "" }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 10))
-                        .foregroundColor(Design.subtleText.opacity(0.4))
+                if !viewModel.clipboardSearchText.isEmpty {
+                    Button(action: { viewModel.clipboardSearchText = "" }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 10))
+                            .foregroundColor(Design.subtleText.opacity(0.4))
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(Design.buttonTint)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Design.borderColor, lineWidth: 0.5)
+            )
+
+            ViewControls(
+                mode: $viewModel.clipboardViewMode,
+                size: $viewModel.clipboardViewSize,
+                onChange: { viewModel.scheduleSave() }
+            )
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .background(Design.buttonTint)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Design.borderColor, lineWidth: 0.5)
-        )
         .padding(.horizontal, 10)
         .padding(.top, 6)
         .padding(.bottom, 2)
@@ -1033,5 +1056,78 @@ struct ClipboardCard: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
             withAnimation(.easeOut(duration: 0.3)) { showCopied = false }
         }
+    }
+}
+
+/// Kompakt enkel-linje-rad for liste-visning av et utklipp.
+struct ClipboardListRow: View {
+    let entry: ClipboardEntry
+    let isSelected: Bool
+    let orderedIds: [UUID]
+    @ObservedObject var viewModel: StashViewModel
+
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if entry.isPinned {
+                Image(systemName: "pin.fill")
+                    .font(.system(size: 7))
+                    .foregroundColor(Design.accent)
+                    .frame(width: 10)
+            } else {
+                Spacer().frame(width: 10)
+            }
+
+            Text(entry.preview)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundColor(Design.primaryText)
+                .lineLimit(1)
+                .truncationMode(.tail)
+
+            Spacer(minLength: 6)
+
+            Text(entry.formattedDate)
+                .font(.system(size: 8, design: .rounded))
+                .foregroundColor(Design.subtleText.opacity(0.6))
+
+            if isHovered {
+                Button(action: { viewModel.copyClipboardEntry(entry) }) {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 9))
+                }
+                .buttonStyle(Design.InlineActionStyle())
+                .help("Kopier")
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 5)
+                .fill(isSelected ? Design.accent.opacity(0.12) : (isHovered ? Design.cardHoverBackground : Color.clear))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 5)
+                .stroke(isSelected ? Design.accent.opacity(0.4) : Color.clear, lineWidth: 1)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) {
+            viewModel.copyClipboardEntry(entry)
+        }
+        .onTapGesture(count: 1) {
+            let flags = NSApp.currentEvent?.modifierFlags ?? []
+            withAnimation(.easeInOut(duration: 0.1)) {
+                if flags.contains(.shift) {
+                    viewModel.selectRangeInClipboard(to: entry.id, orderedIds: orderedIds)
+                } else {
+                    viewModel.toggleClipboardSelection(entry.id)
+                }
+            }
+        }
+        .onHover { hovering in
+            isHovered = hovering
+        }
+        .onDrag { NSItemProvider(object: entry.text as NSString) }
+        .help(entry.text.prefix(300) + (entry.text.count > 300 ? "\u{2026}" : ""))
     }
 }

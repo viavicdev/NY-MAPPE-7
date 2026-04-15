@@ -106,6 +106,12 @@ struct HeaderView: View {
                     }
                     .menuStyle(.borderlessButton)
                     .fixedSize()
+
+                    ViewControls(
+                        mode: $viewModel.filesViewMode,
+                        size: $viewModel.filesViewSize,
+                        onChange: { viewModel.scheduleSave() }
+                    )
                 }
             }
         }

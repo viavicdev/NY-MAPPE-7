@@ -5,42 +5,70 @@ struct ScreenshotLightGridView: View {
     @ObservedObject var viewModel: StashViewModel
     @State private var lightboxItem: StashItem?
 
-    // 3 like store kolonner — passer i light-mode panelet (380px bredt).
-    private let columns = [
-        GridItem(.flexible(), spacing: 6),
-        GridItem(.flexible(), spacing: 6),
-        GridItem(.flexible(), spacing: 6)
-    ]
-
     private var screenshots: [StashItem] {
         viewModel.currentItems
     }
 
+    /// Antall kolonner styrt av size-slider: 4 (liten) → 1 (stor)
+    private var columnCount: Int {
+        let s = viewModel.screenshotsViewSize
+        if s < 0.25 { return 4 }
+        if s < 0.55 { return 3 }
+        if s < 0.85 { return 2 }
+        return 1
+    }
+
+    private var adaptiveColumns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 6), count: columnCount)
+    }
+
     var body: some View {
-        ScrollView {
-            LazyVGrid(columns: columns, spacing: 6) {
-                ForEach(screenshots) { item in
-                    ScreenshotTile(
-                        item: item,
-                        isSelected: viewModel.selectedItemIds.contains(item.id),
-                        onTap: { flags in
-                            if flags.contains(.shift) {
-                                viewModel.selectRange(to: item.id)
-                            } else if flags.contains(.command) {
-                                viewModel.toggleSelection(item.id, extending: true)
-                            } else {
-                                // Enkelt-klikk: \u{00E5}pne lightbox (nåværende adferd)
-                                lightboxItem = item
-                            }
-                        },
-                        onLongPress: {
-                            viewModel.toggleSelection(item.id, extending: true)
+        VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                ViewControls(
+                    mode: $viewModel.screenshotsViewMode,
+                    size: $viewModel.screenshotsViewSize,
+                    onChange: { viewModel.scheduleSave() }
+                )
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+            }
+
+            ScrollView {
+                if viewModel.screenshotsViewMode == .list {
+                    LazyVStack(spacing: 3) {
+                        ForEach(screenshots) { item in
+                            screenshotListRow(for: item)
                         }
-                    )
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                } else {
+                    LazyVGrid(columns: adaptiveColumns, spacing: 6) {
+                        ForEach(screenshots) { item in
+                            ScreenshotTile(
+                                item: item,
+                                isSelected: viewModel.selectedItemIds.contains(item.id),
+                                onTap: { flags in
+                                    if flags.contains(.shift) {
+                                        viewModel.selectRange(to: item.id)
+                                    } else if flags.contains(.command) {
+                                        viewModel.toggleSelection(item.id, extending: true)
+                                    } else {
+                                        lightboxItem = item
+                                    }
+                                },
+                                onLongPress: {
+                                    viewModel.toggleSelection(item.id, extending: true)
+                                }
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
         }
         .sheet(item: $lightboxItem) { item in
             ScreenshotLightbox(
@@ -50,6 +78,68 @@ struct ScreenshotLightGridView: View {
                 onNavigate: { newItem in lightboxItem = newItem },
                 viewModel: viewModel
             )
+        }
+    }
+
+    @ViewBuilder
+    private func screenshotListRow(for item: StashItem) -> some View {
+        let isSelected = viewModel.selectedItemIds.contains(item.id)
+        let rowHeight: CGFloat = 24 + CGFloat(viewModel.screenshotsViewSize) * 28
+
+        HStack(spacing: 8) {
+            Group {
+                if let thumbPath = item.thumbnailPath,
+                   let nsImage = NSImage(contentsOfFile: thumbPath) {
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } else if let nsImage = NSImage(contentsOfFile: item.stagedURL.path) {
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } else {
+                    Image(systemName: "photo")
+                        .foregroundColor(Design.subtleText)
+                }
+            }
+            .frame(width: rowHeight, height: rowHeight)
+            .background(Color.black.opacity(0.2))
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+
+            Text(item.fileName)
+                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .foregroundColor(Design.primaryText)
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            Spacer()
+
+            Text(item.formattedSize)
+                .font(.system(size: 8, design: .monospaced))
+                .foregroundColor(Design.subtleText.opacity(0.7))
+        }
+        .padding(.horizontal, 8)
+        .frame(height: rowHeight + 4)
+        .background(
+            RoundedRectangle(cornerRadius: 5)
+                .fill(isSelected ? Design.accent.opacity(0.12) : Design.cardBackground.opacity(0.5))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 5)
+                .stroke(isSelected ? Design.accent.opacity(0.5) : Color.clear, lineWidth: 1)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) { lightboxItem = item }
+        .onTapGesture(count: 1) {
+            let flags = NSApp.currentEvent?.modifierFlags ?? []
+            if flags.contains(.shift) {
+                viewModel.selectRange(to: item.id)
+            } else {
+                viewModel.toggleSelection(item.id, extending: flags.contains(.command))
+            }
+        }
+        .onDrag {
+            NSItemProvider(contentsOf: item.stagedURL) ?? NSItemProvider(object: item.stagedURL as NSURL)
         }
     }
 }
