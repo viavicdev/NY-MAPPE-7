@@ -48,7 +48,7 @@ class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
         // Create the floating panel (340 = enkel, 520 = full)
         let initialHeight: CGFloat = 340  // Start i enkel modus
         panel = FloatingPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 380, height: initialHeight),
+            contentRect: NSRect(x: 0, y: 0, width: 388, height: initialHeight),
             styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -67,7 +67,7 @@ class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
                 ? NSColor(red: 0.04, green: 0.04, blue: 0.06, alpha: 1.0)
                 : NSColor(red: 0.97, green: 0.97, blue: 0.96, alpha: 1.0)
         })
-        panel.setContentSize(NSSize(width: 380, height: initialHeight))
+        panel.setContentSize(NSSize(width: 388, height: initialHeight))
         panel.minSize = NSSize(width: 320, height: 280)
 
         // Round corners (bigger radius)

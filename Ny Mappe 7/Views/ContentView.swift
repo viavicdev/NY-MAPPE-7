@@ -17,7 +17,7 @@ struct ContentView: View {
 
             VStack(spacing: 0) {
                 tabBar
-                if viewModel.isLightVersion && viewModel.activeTab != .tools {
+                if viewModel.isLightVersion && viewModel.activeTab != .tools && viewModel.activeTab != .kontekst {
                     simpleToolbar
                 }
 
@@ -32,6 +32,8 @@ struct ContentView: View {
                     ToolsTabView(viewModel: viewModel)
                 } else if viewModel.activeTab == .clipboard {
                     ClipboardListView(viewModel: viewModel)
+                } else if viewModel.activeTab == .kontekst {
+                    KontekstView(viewModel: viewModel)
                 } else {
                     VStack(spacing: 6) {
                         // Header (stats + filters/sorting, full mode only)
@@ -163,7 +165,7 @@ struct ContentView: View {
     private func handleKeyEvent(_ event: NSEvent) -> Bool {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
 
-        // Cmd+1/2/3: Switch tabs
+        // Cmd+1/2/3/4: Switch tabs
         if flags == .command, let chars = event.charactersIgnoringModifiers {
             switch chars {
             case "1":
@@ -173,6 +175,9 @@ struct ContentView: View {
                 withAnimation(.easeInOut(duration: 0.2)) { viewModel.activeTab = .clipboard }
                 return true
             case "3":
+                withAnimation(.easeInOut(duration: 0.2)) { viewModel.activeTab = .kontekst }
+                return true
+            case "4":
                 withAnimation(.easeInOut(duration: 0.2)) { viewModel.activeTab = .tools }
                 return true
             default:
@@ -211,9 +216,11 @@ struct ContentView: View {
                     viewModel.selectAll()
                 case .paths:
                     viewModel.selectAllPathEntries()
-                case .sheets, .bundles:
+                case .sheets:
                     break
                 }
+            case .kontekst:
+                break
             }
             return true
         }
@@ -256,9 +263,11 @@ struct ContentView: View {
                         withAnimation { viewModel.removeSelectedPathEntries() }
                         return true
                     }
-                case .sheets, .bundles:
+                case .sheets:
                     break
                 }
+            case .kontekst:
+                break
             }
             return false
         }
@@ -301,9 +310,11 @@ struct ContentView: View {
                         viewModel.selectedPathIds.removeAll()
                         hadSelection = true
                     }
-                case .sheets, .bundles:
+                case .sheets:
                     break
                 }
+            case .kontekst:
+                break
             }
             if !hadSelection {
                 NSApplication.shared.windows
@@ -327,7 +338,7 @@ struct ContentView: View {
     private func resizePanelForMode(light: Bool) {
         DispatchQueue.main.async {
             guard let window = NSApplication.shared.windows.first(where: { $0.title == "Ny Mappe (7)" }) else { return }
-            let newWidth: CGFloat = light ? 380 : 480
+            let newWidth: CGFloat = light ? 388 : 480
             let newHeight: CGFloat = light ? 310 : 520
             let oldFrame = window.frame
             let newX = oldFrame.midX - (newWidth / 2)
@@ -400,6 +411,7 @@ struct ContentView: View {
         case .files: return viewModel.fileCount
         case .clipboard: return viewModel.clipboardCount
         case .tools: return viewModel.toolsCount
+        case .kontekst: return viewModel.kontekstCount
         }
     }
 
@@ -408,6 +420,7 @@ struct ContentView: View {
         case .files: return "doc.on.doc"
         case .clipboard: return "doc.on.clipboard"
         case .tools: return "wrench.and.screwdriver"
+        case .kontekst: return "sparkles"
         }
     }
 
@@ -417,6 +430,7 @@ struct ContentView: View {
         case .files: return "\(c) filer"
         case .clipboard: return "\(c) utklipp"
         case .tools: return "\(c) elementer"
+        case .kontekst: return "\(c) element\(c == 1 ? "" : "er")"
         }
     }
 
@@ -559,40 +573,18 @@ struct ContentView: View {
     // MARK: - Tab Bar (redesigned with thick underline + red badges)
 
     private var tabBar: some View {
-        ZStack(alignment: .topTrailing) {
-            HStack(spacing: 0) {
-                tabButton(title: "Filer", icon: "doc.on.doc", customIcon: "filer", count: viewModel.fileCount, tab: .files)
-                tabButton(title: "Utklipp", icon: "doc.on.clipboard", customIcon: "utklipp", count: viewModel.clipboardCount, tab: .clipboard)
-                tabButton(title: "Verkt\u{00F8}y", icon: "wrench.and.screwdriver", customIcon: nil, count: viewModel.toolsCount, tab: .tools)
+        HStack(spacing: 0) {
+            tabButton(title: "Filer", icon: "doc.on.doc", customIcon: "filer", count: viewModel.fileCount, tab: .files)
+            tabButton(title: "Utklipp", icon: "doc.on.clipboard", customIcon: "utklipp", count: viewModel.clipboardCount, tab: .clipboard)
+            tabButton(title: "Kontekst", icon: "sparkles", customIcon: nil, count: viewModel.kontekstCount, tab: .kontekst)
+            tabButton(title: "Tools", icon: "wrench.and.screwdriver", customIcon: nil, count: viewModel.toolsCount, tab: .tools)
 
-                Spacer()
-                    .frame(width: 52)
-            }
-            .padding(.leading, 2)
-
-            HStack(spacing: 4) {
-                settingsButton
-                    .frame(width: 20, height: 20)
-
-                Button(action: {
-                    NSApplication.shared.windows
-                        .first(where: { $0.title == "Ny Mappe (7)" })?
-                        .orderOut(nil)
-                }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(Design.subtleText.opacity(0.7))
-                        .frame(width: 20, height: 20)
-                        .background(Design.buttonTint)
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(Design.borderColor, lineWidth: 0.5))
-                }
-                .buttonStyle(.plain)
-                .help("Lukk panelet")
-            }
-            .padding(.trailing, 8)
-            .padding(.top, 4)
+            // Settings p\u{00E5} h\u{00F8}yre side, p\u{00E5} samme rad
+            settingsButton
+                .frame(width: 20, height: 20)
+                .padding(.horizontal, 6)
         }
+        .padding(.leading, 2)
         .background(Design.headerSurface)
         .overlay(
             Rectangle()
@@ -611,22 +603,23 @@ struct ContentView: View {
             }
         }) {
             VStack(spacing: 0) {
-                HStack(spacing: 4) {
+                HStack(spacing: 3) {
                     if let customIcon = customIcon {
                         AppIcon(customIcon)
-                            .frame(width: 12, height: 12)
+                            .frame(width: 10, height: 10)
                     } else {
                         Image(systemName: icon)
-                            .font(.system(size: 10, weight: isActive ? .semibold : .light))
+                            .font(.system(size: 9, weight: isActive ? .semibold : .light))
                     }
                     Text(title)
-                        .font(.system(size: 11, weight: isActive ? .bold : .medium, design: .rounded))
+                        .font(.system(size: 9.5, weight: isActive ? .bold : .medium, design: .rounded))
+                        .lineLimit(1)
                     if count > 0 {
                         Text("\(count)")
-                            .font(.system(size: 9, weight: .bold, design: .rounded))
+                            .font(.system(size: 7.5, weight: .bold, design: .rounded))
                             .foregroundColor(.white)
-                            .padding(.horizontal, count >= 100 ? 5 : count >= 10 ? 4 : 0)
-                            .frame(minWidth: 20, minHeight: 20)
+                            .padding(.horizontal, count >= 100 ? 4 : count >= 10 ? 3 : 0)
+                            .frame(minWidth: 16, minHeight: 16)
                             .background(
                                 Capsule()
                                     .fill(isActive ? Design.accent : Design.badgeRed)
@@ -634,7 +627,7 @@ struct ContentView: View {
                     }
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 9)
+                .padding(.vertical, 8)
                 .foregroundColor(isActive ? Design.primaryText : Design.subtleText)
 
                 // Thick underline indicator

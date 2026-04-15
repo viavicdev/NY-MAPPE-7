@@ -15,7 +15,7 @@ set -e
 APP_NAME="Ny Mappe (7) v2"
 EXECUTABLE="NyMappa7"
 MIN_MACOS="13.0"
-VERSION="4.8"
+VERSION="5.1"
 
 # ── Code Signing & Notarization ──────────────────────────
 # Fill in these values from your Apple Developer account:
@@ -56,6 +56,7 @@ SOURCES=(
     "$SRC_DIR/Models/Date+TimeAgo.swift"
     "$SRC_DIR/Models/BundleItem.swift"
     "$SRC_DIR/Models/ContextBundle.swift"
+    "$SRC_DIR/Models/Prompt.swift"
     "$SRC_DIR/Models/PathEntry.swift"
     "$SRC_DIR/ViewModels/StashViewModel.swift"
     "$SRC_DIR/Services/StagingService.swift"
@@ -84,6 +85,8 @@ SOURCES=(
     "$SRC_DIR/Views/Components/ToastView.swift"
     "$SRC_DIR/Views/Components/AppIcon.swift"
     "$SRC_DIR/Views/Components/ContextBundlesView.swift"
+    "$SRC_DIR/Views/Components/PromptsView.swift"
+    "$SRC_DIR/Views/Components/KontekstView.swift"
     "$SRC_DIR/Views/Components/BatchRenameSheet.swift"
     "$SRC_DIR/Views/Components/PathListView.swift"
     "$SRC_DIR/Views/Components/SettingsSheet.swift"

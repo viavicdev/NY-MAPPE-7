@@ -56,6 +56,10 @@ final class StashViewModel: ObservableObject {
     @Published var contextBundles: [ContextBundle] = []
     @Published var activeContextBundleId: UUID?
 
+    // Prompt-bank
+    @Published var promptCategories: [PromptCategory] = []
+    @Published var activePromptCategoryId: UUID?
+
     // Global toast (Kopiert!, Lagret! osv)
     @Published var toastMessage: String?
     private var toastDismissTask: Task<Void, Never>?
@@ -85,16 +89,22 @@ final class StashViewModel: ObservableObject {
         case files
         case clipboard
         case tools
+        case kontekst
     }
 
     enum ToolsSubTab {
         case screenshots
         case paths
         case sheets
+    }
+
+    enum KontekstSubTab {
         case bundles
+        case prompts
     }
 
     @Published var activeToolsTab: ToolsSubTab = .screenshots
+    @Published var activeKontekstTab: KontekstSubTab = .bundles
 
     // MARK: - Services
 
@@ -125,9 +135,11 @@ final class StashViewModel: ObservableObject {
             switch activeToolsTab {
             case .screenshots:
                 filtered = filtered.filter { $0.isScreenshot }
-            case .paths, .sheets, .bundles:
+            case .paths, .sheets:
                 return []
             }
+        case .kontekst:
+            return []
         }
 
         // Apply filter (only in full mode)
@@ -174,6 +186,10 @@ final class StashViewModel: ObservableObject {
 
     var toolsCount: Int {
         screenshotCount + pathCount + sheetsRowCount
+    }
+
+    var kontekstCount: Int {
+        contextBundles.count + promptCategories.count
     }
 
     var clipboardCount: Int {
@@ -245,6 +261,8 @@ final class StashViewModel: ObservableObject {
             self.lastOpenedQuickNoteId = state.lastOpenedQuickNoteId
             self.contextBundles = state.contextBundles
             self.activeContextBundleId = state.activeContextBundleId
+            self.promptCategories = state.promptCategories
+            self.activePromptCategoryId = state.activePromptCategoryId
             // Alle eksisterende grupper starter ekspandert, samt "Ingen gruppe" (nil).
             self.expandedClipboardGroupIds = Set([nil] + state.clipboardGroups.map { Optional($0.id) })
 
@@ -254,6 +272,7 @@ final class StashViewModel: ObservableObject {
 
         performAutoCleanup()
         migrateLegacyBundleFiles()
+        seedDefaultPromptCategoriesIfNeeded()
 
         // Ensure default set exists
         if sets.isEmpty {
@@ -307,7 +326,9 @@ final class StashViewModel: ObservableObject {
                 quickNotes: self.quickNotes,
                 lastOpenedQuickNoteId: self.lastOpenedQuickNoteId,
                 contextBundles: self.contextBundles,
-                activeContextBundleId: self.activeContextBundleId
+                activeContextBundleId: self.activeContextBundleId,
+                promptCategories: self.promptCategories,
+                activePromptCategoryId: self.activePromptCategoryId
             )
             self.persistence.saveState(state)
         }
@@ -1057,11 +1078,11 @@ final class StashViewModel: ObservableObject {
     }
 
     @discardableResult
-    func createContextBundle(name: String) -> ContextBundle {
+    func createContextBundle(name: String, iconName: String? = nil) -> ContextBundle {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let finalName = trimmed.isEmpty ? "Ny bundle" : trimmed
         let nextIndex = (contextBundles.map { $0.sortIndex }.max() ?? -1) + 1
-        let bundle = ContextBundle(name: finalName, sortIndex: nextIndex)
+        let bundle = ContextBundle(name: finalName, sortIndex: nextIndex, iconName: iconName)
         contextBundles.append(bundle)
         activeContextBundleId = bundle.id
         scheduleSave()
@@ -1089,6 +1110,11 @@ final class StashViewModel: ObservableObject {
     func setActiveContextBundle(_ id: UUID?) {
         activeContextBundleId = id
         scheduleSave()
+    }
+
+    /// Eksponer bundle-lagringsstien for views som trenger \u{00E5} dra enkelt-filer.
+    func persistenceBundleStorageURL(for bundleId: UUID) -> URL {
+        persistence.bundleStorageURL(for: bundleId)
     }
 
     /// Kopierer fila fra sourceURL inn i bundlens egen lagring. Bundlen blir
@@ -1272,6 +1298,172 @@ final class StashViewModel: ObservableObject {
         if let bundle = contextBundles.first(where: { $0.id == bundleId }) {
             showToast("\(bundle.name) kopiert!")
         }
+    }
+
+    // MARK: - Prompts
+
+    /// Seeder standard prompt-kategorier p\u{00E5} f\u{00F8}rste kj\u{00F8}ring hvis lista er tom.
+    func seedDefaultPromptCategoriesIfNeeded() {
+        guard promptCategories.isEmpty else { return }
+        let defaults: [(String, String)] = [
+            ("Musikk",   "prompt-musikk"),
+            ("Regler",   "prompt-regler"),
+            ("Skriving", "prompt-skriving")
+        ]
+        for (idx, (name, icon)) in defaults.enumerated() {
+            promptCategories.append(PromptCategory(name: name, iconName: icon, sortIndex: idx))
+        }
+        activePromptCategoryId = promptCategories.first?.id
+        scheduleSave()
+    }
+
+    var activePromptCategory: PromptCategory? {
+        guard let id = activePromptCategoryId else { return nil }
+        return promptCategories.first(where: { $0.id == id })
+    }
+
+    @discardableResult
+    func createPromptCategory(name: String, iconName: String? = nil) -> PromptCategory {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let finalName = trimmed.isEmpty ? "Ny kategori" : trimmed
+        let nextIndex = (promptCategories.map { $0.sortIndex }.max() ?? -1) + 1
+        let cat = PromptCategory(name: finalName, iconName: iconName, sortIndex: nextIndex)
+        promptCategories.append(cat)
+        activePromptCategoryId = cat.id
+        scheduleSave()
+        return cat
+    }
+
+    func renamePromptCategory(id: UUID, name: String) {
+        guard let idx = promptCategories.firstIndex(where: { $0.id == id }) else { return }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        promptCategories[idx].name = trimmed
+        scheduleSave()
+    }
+
+    func deletePromptCategory(id: UUID) {
+        promptCategories.removeAll { $0.id == id }
+        if activePromptCategoryId == id {
+            activePromptCategoryId = promptCategories.first?.id
+        }
+        // Rydd opp filvedlegg p\u{00E5} disk
+        persistence.removePromptStorage(for: id)
+        scheduleSave()
+    }
+
+    /// Eksponer prompt-lagringsstien for views som trenger \u{00E5} dra enkelt-filer.
+    func persistencePromptStorageURL(for categoryId: UUID) -> URL {
+        persistence.promptStorageURL(for: categoryId)
+    }
+
+    func setActivePromptCategory(_ id: UUID?) {
+        activePromptCategoryId = id
+        scheduleSave()
+    }
+
+    @discardableResult
+    func addPrompt(categoryId: UUID, title: String = "", body: String = "") -> UUID? {
+        guard let idx = promptCategories.firstIndex(where: { $0.id == categoryId }) else { return nil }
+        let prompt = Prompt(title: title, body: body)
+        promptCategories[idx].prompts.append(prompt)
+        scheduleSave()
+        return prompt.id
+    }
+
+    /// Legger til en fil-basert prompt ved \u{00E5} kopiere sourceURL inn i kategoriens
+    /// egen lagring. Returnerer prompt-ID eller nil ved feil.
+    @discardableResult
+    func addPromptFile(categoryId: UUID, sourceURL: URL) -> UUID? {
+        guard let idx = promptCategories.firstIndex(where: { $0.id == categoryId }) else { return nil }
+        let dir = persistence.promptStorageURL(for: categoryId)
+        let originalName = sourceURL.lastPathComponent
+        let finalName = uniqueFilename(in: dir, for: originalName)
+        let destURL = dir.appendingPathComponent(finalName)
+
+        let fm = FileManager.default
+        do {
+            if fm.fileExists(atPath: destURL.path) {
+                try fm.removeItem(at: destURL)
+            }
+            try fm.copyItem(at: sourceURL, to: destURL)
+        } catch {
+            errorMessage = "Kunne ikke kopiere \(originalName) til prompt-kategorien: \(error.localizedDescription)"
+            showError = true
+            return nil
+        }
+
+        let size = (try? fm.attributesOfItem(atPath: destURL.path)[.size] as? NSNumber)?.int64Value ?? 0
+        // Bruk filnavn (uten extension) som standardtittel hvis ingen er satt
+        let autoTitle = (finalName as NSString).deletingPathExtension
+        let prompt = Prompt(
+            title: autoTitle,
+            body: "",
+            fileName: finalName,
+            fileSizeBytes: size
+        )
+        promptCategories[idx].prompts.append(prompt)
+        scheduleSave()
+        return prompt.id
+    }
+
+    func updatePrompt(categoryId: UUID, promptId: UUID, title: String? = nil, body: String? = nil) {
+        guard let cIdx = promptCategories.firstIndex(where: { $0.id == categoryId }) else { return }
+        guard let pIdx = promptCategories[cIdx].prompts.firstIndex(where: { $0.id == promptId }) else { return }
+        if let title = title { promptCategories[cIdx].prompts[pIdx].title = title }
+        if let body = body { promptCategories[cIdx].prompts[pIdx].body = body }
+        promptCategories[cIdx].prompts[pIdx].updatedAt = Date()
+        scheduleSave()
+    }
+
+    func deletePrompt(categoryId: UUID, promptId: UUID) {
+        guard let cIdx = promptCategories.firstIndex(where: { $0.id == categoryId }) else { return }
+        // Hvis prompten har filvedlegg, slett ogs\u{00E5} fila fra disk
+        if let prompt = promptCategories[cIdx].prompts.first(where: { $0.id == promptId }),
+           let fileName = prompt.fileName {
+            let fileURL = persistence.promptStorageURL(for: categoryId)
+                .appendingPathComponent(fileName)
+            try? FileManager.default.removeItem(at: fileURL)
+        }
+        promptCategories[cIdx].prompts.removeAll { $0.id == promptId }
+        scheduleSave()
+    }
+
+    func copyPrompt(categoryId: UUID, promptId: UUID) {
+        guard let cat = promptCategories.first(where: { $0.id == categoryId }),
+              let prompt = cat.prompts.first(where: { $0.id == promptId }) else { return }
+
+        // Hvis prompten er filbasert og lesbar som tekst (md/txt), kopier filinnholdet
+        if let fileName = prompt.fileName, prompt.isTextFile {
+            let fileURL = persistence.promptStorageURL(for: categoryId)
+                .appendingPathComponent(fileName)
+            if let content = try? String(contentsOf: fileURL, encoding: .utf8) {
+                copyTextToPasteboard(content)
+                showToast("\(prompt.displayTitle) kopiert!")
+                return
+            }
+            errorMessage = "Kunne ikke lese \(fileName) som tekst"
+            showError = true
+            return
+        }
+
+        // Hvis filbasert men ikke tekst (f.eks. PDF), kan brukeren ikke kopiere innholdet \u{2014}
+        // de m\u{00E5} dra fila ut. Vi gir en tydelig beskjed.
+        if prompt.fileName != nil {
+            showToast("Dra fila ut av appen for \u{00E5} bruke den")
+            return
+        }
+
+        // Tekst-basert prompt: tittel + body
+        let text: String
+        let t = prompt.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if t.isEmpty {
+            text = prompt.body
+        } else {
+            text = t + "\n\n" + prompt.body
+        }
+        copyTextToPasteboard(text)
+        showToast("\(prompt.displayTitle) kopiert!")
     }
 
     // MARK: - Sheets Collector

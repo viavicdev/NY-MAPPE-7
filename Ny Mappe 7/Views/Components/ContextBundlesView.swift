@@ -107,7 +107,10 @@ struct ContextBundlesView: View {
         ZStack {
             // Visuell stil
             HStack(spacing: 4) {
-                if hasFiles {
+                if let icon = bundle.iconName {
+                    AppIcon(icon)
+                        .frame(width: 10, height: 10)
+                } else if hasFiles {
                     // Liten drag-indikator viser at pillen kan dras
                     Image(systemName: "arrow.up.doc.on.clipboard")
                         .font(.system(size: 8, weight: .medium))
@@ -203,8 +206,6 @@ struct ContextBundlesView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
-                    addSnippetButton(bundle)
-
                     if bundle.textItemCount > 0 {
                         sectionHeader("Snippets", systemImage: "text.alignleft", count: bundle.textItemCount)
                         VStack(spacing: 4) {
@@ -218,11 +219,15 @@ struct ContextBundlesView: View {
 
                     if bundle.fileItemCount > 0 {
                         sectionHeader("Filer", systemImage: "doc", count: bundle.fileItemCount)
-                        VStack(spacing: 4) {
+                        LazyVGrid(columns: [
+                            GridItem(.flexible(), spacing: 6),
+                            GridItem(.flexible(), spacing: 6),
+                            GridItem(.flexible(), spacing: 6)
+                        ], spacing: 6) {
                             ForEach(bundle.items) { item in
                                 switch item {
                                 case .localFile(let id, let fileName, let sizeBytes, _):
-                                    localFileRow(
+                                    localFileTile(
                                         bundleId: bundle.id,
                                         itemId: id,
                                         fileName: fileName,
@@ -270,18 +275,18 @@ struct ContextBundlesView: View {
             if renamingBundleId == bundle.id {
                 TextField("Navn", text: $renameBuffer)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundColor(Design.primaryText)
                     .onSubmit { commitRename() }
                 Button(action: commitRename) {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 12))
+                        .font(.system(size: 11))
                         .foregroundColor(Design.accent)
                 }
                 .buttonStyle(.plain)
             } else {
                 Text(bundle.name)
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundColor(Design.primaryText)
 
                 Text("\(bundle.fileItemCount) fil\(bundle.fileItemCount == 1 ? "" : "er") \u{00B7} \(bundle.textItemCount) snippet\(bundle.textItemCount == 1 ? "" : "s")")
@@ -292,6 +297,32 @@ struct ContextBundlesView: View {
             Spacer()
 
             if renamingBundleId != bundle.id {
+                // + meny: legg til snippet eller filer
+                Menu {
+                    Button(action: {
+                        _ = viewModel.addTextToBundle(bundleId: bundle.id, title: "", body: "")
+                    }) {
+                        Label("Tekstsnippet", systemImage: "text.alignleft")
+                    }
+                    Button(action: {
+                        openFilePickerForBundle(bundleId: bundle.id)
+                    }) {
+                        Label("Velg filer\u{2026}", systemImage: "doc")
+                    }
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(Design.accent)
+                        .frame(width: 22, height: 22)
+                        .background(Design.accent.opacity(0.12))
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Design.accent.opacity(0.3), lineWidth: 0.5))
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("Legg til tekstsnippet eller fil")
+
                 Button(action: {
                     renamingBundleId = bundle.id
                     renameBuffer = bundle.name
@@ -321,7 +352,7 @@ struct ContextBundlesView: View {
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.vertical, 6)
         .background(Design.headerSurface)
     }
 
@@ -407,10 +438,132 @@ struct ContextBundlesView: View {
     }
 
     @ViewBuilder
+    private func localFileTile(bundleId: UUID, itemId: UUID, fileName: String, sizeBytes: Int64) -> some View {
+        let sizeStr = ByteCountFormatter.string(fromByteCount: sizeBytes, countStyle: .file)
+        let fileURL = viewModel.persistenceBundleStorageURL(for: bundleId)
+            .appendingPathComponent(fileName)
+        let ext = (fileName as NSString).pathExtension.lowercased()
+        let icon = fileIconName(for: ext)
+        let iconColor = fileIconColor(for: ext)
+
+        VStack(spacing: 6) {
+            ZStack(alignment: .topTrailing) {
+                // Filikon
+                VStack(spacing: 4) {
+                    Image(systemName: icon)
+                        .font(.system(size: 28, weight: .regular))
+                        .foregroundColor(iconColor)
+                        .frame(height: 36)
+                    if !ext.isEmpty {
+                        Text(ext.uppercased())
+                            .font(.system(size: 7, weight: .bold, design: .monospaced))
+                            .foregroundColor(iconColor.opacity(0.8))
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(iconColor.opacity(0.15))
+                            .clipShape(Capsule())
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 8)
+                .padding(.bottom, 4)
+
+                // X-knapp \u{00F8}verst til h\u{00F8}yre
+                Button(action: {
+                    withAnimation { viewModel.removeBundleItem(bundleId: bundleId, itemId: itemId) }
+                }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundColor(Design.subtleText.opacity(0.7))
+                        .frame(width: 14, height: 14)
+                        .background(Design.buttonTint)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .padding(3)
+                .help("Fjern fra bundle")
+            }
+
+            VStack(spacing: 1) {
+                Text(fileName)
+                    .font(.system(size: 9.5, weight: .medium, design: .rounded))
+                    .foregroundColor(Design.primaryText)
+                    .lineLimit(2)
+                    .truncationMode(.middle)
+                    .multilineTextAlignment(.center)
+                Text(sizeStr)
+                    .font(.system(size: 8, design: .monospaced))
+                    .foregroundColor(Design.subtleText.opacity(0.7))
+            }
+            .padding(.horizontal, 4)
+            .padding(.bottom, 6)
+        }
+        .frame(maxWidth: .infinity)
+        .background(Design.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8).stroke(Design.borderColor, lineWidth: 0.5)
+        )
+        .help("Dra inn i en annen app for \u{00E5} overf\u{00F8}re fila")
+        .onDrag {
+            NSItemProvider(contentsOf: fileURL) ?? NSItemProvider(object: fileURL as NSURL)
+        }
+    }
+
+    /// Velger et passende SF-Symbol basert p\u{00E5} filendelsen.
+    private func fileIconName(for ext: String) -> String {
+        switch ext {
+        case "pdf": return "doc.richtext.fill"
+        case "md", "markdown": return "doc.text.fill"
+        case "txt", "rtf": return "doc.plaintext.fill"
+        case "doc", "docx", "pages": return "doc.fill"
+        case "xls", "xlsx", "csv", "numbers": return "tablecells.fill"
+        case "ppt", "pptx", "key", "keynote": return "rectangle.stack.fill"
+        case "png", "jpg", "jpeg", "gif", "heic", "webp", "tiff", "bmp", "svg": return "photo.fill"
+        case "mp4", "mov", "avi", "mkv", "webm": return "play.rectangle.fill"
+        case "mp3", "wav", "m4a", "flac", "aac": return "waveform"
+        case "zip", "rar", "7z", "tar", "gz", "dmg": return "archivebox.fill"
+        case "json", "xml", "html", "htm": return "curlybraces"
+        case "swift", "py", "js", "ts", "rb", "go", "rs", "c", "cpp", "h", "java": return "chevron.left.forwardslash.chevron.right"
+        default: return "doc.fill"
+        }
+    }
+
+    /// Farge per filtype for litt visuell distinksjon.
+    private func fileIconColor(for ext: String) -> Color {
+        switch ext {
+        case "pdf": return Design.accent
+        case "md", "markdown", "txt", "rtf": return Design.primaryText.opacity(0.7)
+        case "png", "jpg", "jpeg", "gif", "heic", "webp", "tiff", "bmp", "svg":
+            return Color.blue.opacity(0.75)
+        case "mp4", "mov", "avi", "mkv", "webm":
+            return Color.pink.opacity(0.75)
+        case "mp3", "wav", "m4a", "flac", "aac":
+            return Color.purple.opacity(0.75)
+        case "zip", "rar", "7z", "tar", "gz", "dmg":
+            return Color.orange.opacity(0.75)
+        case "doc", "docx", "pages":
+            return Color.blue.opacity(0.75)
+        case "xls", "xlsx", "csv", "numbers":
+            return Color.green.opacity(0.75)
+        default:
+            return Design.subtleText
+        }
+    }
+
+    @ViewBuilder
     private func localFileRow(bundleId: UUID, itemId: UUID, fileName: String, sizeBytes: Int64) -> some View {
         let sizeStr = ByteCountFormatter.string(fromByteCount: sizeBytes, countStyle: .file)
+        let fileURL = viewModel.persistenceBundleStorageURL(for: bundleId)
+            .appendingPathComponent(fileName)
 
         HStack(spacing: 6) {
+            // Drag-handle ikon — indikerer at rada kan dras
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(Design.subtleText.opacity(0.4))
+                .frame(width: 12)
+
             Image(systemName: "doc")
                 .font(.system(size: 11))
                 .foregroundColor(Design.accent)
@@ -446,6 +599,10 @@ struct ContextBundlesView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 6).stroke(Design.borderColor, lineWidth: 0.5)
         )
+        .help("Dra inn i en annen app for \u{00E5} overf\u{00F8}re fila")
+        .onDrag {
+            NSItemProvider(contentsOf: fileURL) ?? NSItemProvider(object: fileURL as NSURL)
+        }
     }
 
     @ViewBuilder
@@ -567,6 +724,23 @@ struct ContextBundlesView: View {
 
     /// Drop fra Finder: kopier filene rett inn i bundle-lagringen.
     /// Bundles er selvstendige \u{2014} filene importeres IKKE til Filer-fanen.
+    /// \u{00C5}pner NSOpenPanel for \u{00E5} velge filer som skal kopieres inn i bundlen.
+    private func openFilePickerForBundle(bundleId: UUID) {
+        let panel = NSOpenPanel()
+        panel.title = "Velg filer"
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.level = .floating
+        panel.begin { response in
+            if response == .OK {
+                for url in panel.urls {
+                    viewModel.addLocalFileToBundle(bundleId: bundleId, sourceURL: url)
+                }
+            }
+        }
+    }
+
     private func handleDrop(providers: [NSItemProvider], into bundleId: UUID) {
         for provider in providers {
             _ = provider.loadObject(ofClass: URL.self) { url, _ in

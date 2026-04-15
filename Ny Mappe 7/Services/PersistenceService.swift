@@ -129,4 +129,23 @@ final class PersistenceService {
             .appendingPathComponent(bundleId.uuidString, isDirectory: true)
         try? fileManager.removeItem(at: url)
     }
+
+    // MARK: - Prompt Storage
+
+    /// Hver prompt-kategori har sin egen mappe for vedlagte filer.
+    func promptStorageURL(for categoryId: UUID) -> URL {
+        let url = appSupportURL
+            .appendingPathComponent("Prompts", isDirectory: true)
+            .appendingPathComponent(categoryId.uuidString, isDirectory: true)
+        try? fileManager.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    /// Sletter hele kategori-mappen (brukes n\u{00E5}r en kategori slettes).
+    func removePromptStorage(for categoryId: UUID) {
+        let url = appSupportURL
+            .appendingPathComponent("Prompts", isDirectory: true)
+            .appendingPathComponent(categoryId.uuidString, isDirectory: true)
+        try? fileManager.removeItem(at: url)
+    }
 }

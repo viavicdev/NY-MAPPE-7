@@ -10,6 +10,20 @@ struct SettingsSheet: View {
 
     @State private var clipboardSectionExpanded = false
     @State private var cleanupSectionExpanded = false
+    @State private var standardBundlesExpanded = false
+
+    private struct StandardBundle {
+        let name: String
+        let iconName: String
+        let emoji: String
+    }
+
+    private let standardBundles: [StandardBundle] = [
+        .init(name: "Jobb",    iconName: "bundle-jobb",    emoji: "\u{1F4BC}"),
+        .init(name: "Meg",     iconName: "bundle-meg",     emoji: "\u{1F464}"),
+        .init(name: "Tech",    iconName: "bundle-tech",    emoji: "\u{1F4BB}"),
+        .init(name: "Traumer", iconName: "bundle-traumer", emoji: "\u{1F9E0}")
+    ]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -18,6 +32,7 @@ struct SettingsSheet: View {
                 VStack(spacing: 16) {
                     appearanceSection
                     clipboardSection
+                    standardBundlesSection
                     screenshotSection
                     cleanupSection
                     shortcutsSection
@@ -59,7 +74,7 @@ struct SettingsSheet: View {
                 Text("Ny Mappe (7)")
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundColor(Design.primaryText)
-                Text("v4.8")
+                Text("v5.1")
                     .font(.system(size: 9, weight: .medium, design: .monospaced))
                     .foregroundColor(Design.subtleText.opacity(0.5))
                     .padding(.horizontal, 5)
@@ -251,6 +266,67 @@ struct SettingsSheet: View {
                 viewModel.scheduleSave()
             }
         }
+    }
+
+    // MARK: - Standard bundles
+
+    private var standardBundlesSection: some View {
+        collapsibleSettingsGroup(
+            title: "Standard bundles",
+            icon: "shippingbox",
+            isExpanded: $standardBundlesExpanded
+        ) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Klikk for \u{00E5} legge til en ferdig bundle med ikon. Du kan gi den nytt navn, slette eller endre i Verkt\u{00F8}y \u{2192} Bundles.")
+                    .font(.system(size: 9, design: .rounded))
+                    .foregroundColor(Design.subtleText.opacity(0.7))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                LazyVGrid(columns: [
+                    GridItem(.flexible(), spacing: 6),
+                    GridItem(.flexible(), spacing: 6)
+                ], spacing: 6) {
+                    ForEach(standardBundles, id: \.name) { preset in
+                        standardBundleButton(preset)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func standardBundleButton(_ preset: StandardBundle) -> some View {
+        let exists = viewModel.contextBundles.contains { $0.name.lowercased() == preset.name.lowercased() }
+
+        Button(action: {
+            guard !exists else { return }
+            _ = viewModel.createContextBundle(name: preset.name, iconName: preset.iconName)
+            viewModel.showToast("\(preset.name) lagt til i Bundles")
+        }) {
+            HStack(spacing: 6) {
+                AppIcon(preset.iconName)
+                    .frame(width: 14, height: 14)
+                    .foregroundColor(exists ? Design.accent : Design.subtleText)
+                Text(preset.name)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundColor(exists ? Design.accent : Design.primaryText)
+                Spacer(minLength: 0)
+                Image(systemName: exists ? "checkmark.circle.fill" : "plus.circle")
+                    .font(.system(size: 10))
+                    .foregroundColor(exists ? Design.accent : Design.subtleText.opacity(0.5))
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(exists ? Design.accent.opacity(0.1) : Design.buttonTint)
+            .clipShape(RoundedRectangle(cornerRadius: 7))
+            .overlay(
+                RoundedRectangle(cornerRadius: 7)
+                    .stroke(exists ? Design.accent.opacity(0.3) : Design.buttonBorder, lineWidth: 0.5)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(exists)
+        .help(exists ? "\(preset.name)-bundle finnes allerede" : "Opprett \(preset.name)-bundle")
     }
 
     // MARK: - Shortcuts

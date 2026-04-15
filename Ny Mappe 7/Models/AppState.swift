@@ -22,6 +22,8 @@ struct AppState: Codable {
     var lastOpenedQuickNoteId: UUID?
     var contextBundles: [ContextBundle]
     var activeContextBundleId: UUID?
+    var promptCategories: [PromptCategory]
+    var activePromptCategoryId: UUID?
 
     init(
         sets: [StashSet] = [],
@@ -44,7 +46,9 @@ struct AppState: Codable {
         quickNotes: [QuickNote] = [],
         lastOpenedQuickNoteId: UUID? = nil,
         contextBundles: [ContextBundle] = [],
-        activeContextBundleId: UUID? = nil
+        activeContextBundleId: UUID? = nil,
+        promptCategories: [PromptCategory] = [],
+        activePromptCategoryId: UUID? = nil
     ) {
         self.sets = sets
         self.items = items
@@ -67,6 +71,8 @@ struct AppState: Codable {
         self.lastOpenedQuickNoteId = lastOpenedQuickNoteId
         self.contextBundles = contextBundles
         self.activeContextBundleId = activeContextBundleId
+        self.promptCategories = promptCategories
+        self.activePromptCategoryId = activePromptCategoryId
     }
 
     // Support loading old state files that may use the old key name
@@ -78,6 +84,7 @@ struct AppState: Codable {
         case clipboardCopyBlankLines, clipboardIncludeGroupHeader
         case quickNotes, lastOpenedQuickNoteId
         case contextBundles, activeContextBundleId
+        case promptCategories, activePromptCategoryId
     }
 
     init(from decoder: Decoder) throws {
@@ -101,7 +108,9 @@ struct AppState: Codable {
         clipboardIncludeGroupHeader = try container.decodeIfPresent(Bool.self, forKey: .clipboardIncludeGroupHeader) ?? true
         quickNotes = try container.decodeIfPresent([QuickNote].self, forKey: .quickNotes) ?? []
         lastOpenedQuickNoteId = try container.decodeIfPresent(UUID.self, forKey: .lastOpenedQuickNoteId)
-        contextBundles = try container.decodeIfPresent([ContextBundle].self, forKey: .contextBundles) ?? []
+        contextBundles = (try? container.decodeIfPresent([ContextBundle].self, forKey: .contextBundles)) ?? []
         activeContextBundleId = try container.decodeIfPresent(UUID.self, forKey: .activeContextBundleId)
+        promptCategories = (try? container.decodeIfPresent([PromptCategory].self, forKey: .promptCategories)) ?? []
+        activePromptCategoryId = try container.decodeIfPresent(UUID.self, forKey: .activePromptCategoryId)
     }
 }

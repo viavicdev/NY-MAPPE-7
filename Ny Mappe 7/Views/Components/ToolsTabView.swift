@@ -8,7 +8,6 @@ struct ToolsTabView: View {
         case .screenshots: return viewModel.screenshotCount
         case .paths: return viewModel.pathCount
         case .sheets: return viewModel.sheetsRowCount
-        case .bundles: return viewModel.contextBundles.count
         }
     }
 
@@ -18,7 +17,6 @@ struct ToolsTabView: View {
         case .screenshots: return "\(c) skjermbilde"
         case .paths: return "\(c) filsti"
         case .sheets: return "\(c) rader"
-        case .bundles: return "\(c) bundle\(c == 1 ? "" : "s")"
         }
     }
 
@@ -69,13 +67,6 @@ struct ToolsTabView: View {
                     count: viewModel.sheetsRowCount,
                     tab: .sheets
                 )
-                subTabButton(
-                    title: "Bundles",
-                    icon: "shippingbox",
-                    customIcon: nil,
-                    count: viewModel.contextBundles.count,
-                    tab: .bundles
-                )
             }
             .padding(.horizontal, 8)
 
@@ -95,26 +86,33 @@ struct ToolsTabView: View {
         }) {
             VStack(spacing: 0) {
                 HStack(spacing: 4) {
-                    if let customIcon = customIcon {
-                        AppIcon(customIcon)
-                            .frame(width: 11, height: 11)
-                    } else {
-                        Image(systemName: icon)
-                            .font(.system(size: 9, weight: isActive ? .medium : .regular))
+                    Group {
+                        if let customIcon = customIcon {
+                            AppIcon(customIcon)
+                        } else {
+                            Image(systemName: icon)
+                                .font(.system(size: 10, weight: isActive ? .medium : .regular))
+                        }
                     }
+                    .frame(width: 12, height: 12)
+
                     Text(title)
                         .font(.system(size: 10, weight: isActive ? .semibold : .medium, design: .rounded))
+                        .lineLimit(1)
+
                     if count > 0 {
                         Text("\(count)")
                             .font(.system(size: 8, weight: .bold, design: .rounded))
                             .foregroundColor(isActive ? .white : Design.subtleText.opacity(0.7))
+                            .padding(.horizontal, 3)
                             .frame(minWidth: 14, minHeight: 14)
                             .background(isActive ? Design.accent.opacity(0.7) : Design.buttonTint)
-                            .clipShape(Circle())
+                            .clipShape(Capsule())
                     }
                 }
                 .foregroundColor(isActive ? Design.primaryText : Design.subtleText)
                 .frame(maxWidth: .infinity)
+                .padding(.horizontal, 4)
                 .padding(.vertical, 7)
 
                 Rectangle()
@@ -123,8 +121,10 @@ struct ToolsTabView: View {
                     .cornerRadius(1)
                     .padding(.horizontal, 4)
             }
+            .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Content Router
@@ -138,8 +138,6 @@ struct ToolsTabView: View {
             PathListView(viewModel: viewModel)
         case .sheets:
             sheetsContent
-        case .bundles:
-            ContextBundlesView(viewModel: viewModel)
         }
     }
 
