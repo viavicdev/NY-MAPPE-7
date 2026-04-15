@@ -72,20 +72,18 @@ struct ContextBundlesView: View {
                         }
                         .padding(.leading, 6)
                     } else {
-                        // "+ Bundle" som f\u{00F8}rste tab-entry
+                        // Kun "+" som f\u{00F8}rste tab-entry
                         Button(action: {
                             showNewBundleField = true
                             newBundleFocused = true
                         }) {
-                            HStack(spacing: 3) {
-                                Image(systemName: "plus")
-                                    .font(.system(size: 9, weight: .bold))
-                                Text("Bundle")
-                                    .font(.system(size: 10, weight: .medium, design: .rounded))
-                            }
-                            .foregroundColor(Design.accent)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 5)
+                            Image(systemName: "plus")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(Design.accent)
+                                .frame(width: 22, height: 22)
+                                .background(Design.accent.opacity(0.12))
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(Design.accent.opacity(0.3), lineWidth: 0.5))
                         }
                         .buttonStyle(.plain)
                         .help("Lag ny bundle")
