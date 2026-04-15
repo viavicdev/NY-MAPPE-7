@@ -131,20 +131,6 @@ struct ContextBundlesView: View {
                     .help("Legg til innhold")
 
                     Button(action: {
-                        renamingBundleId = active.id
-                        renameBuffer = active.name
-                    }) {
-                        Image(systemName: "pencil")
-                            .font(.system(size: 9))
-                            .foregroundColor(Design.subtleText)
-                            .frame(width: 18, height: 18)
-                            .background(Design.buttonTint)
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .help("Gi bundlen nytt navn")
-
-                    Button(action: {
                         withAnimation { viewModel.deleteContextBundle(id: active.id) }
                     }) {
                         Image(systemName: "trash")
@@ -213,8 +199,13 @@ struct ContextBundlesView: View {
                 if !isRenaming {
                     DraggableCardWrapper(
                         urls: urls,
-                        onClick: { _ in
-                            viewModel.setActiveContextBundle(bundle.id)
+                        onClick: { event in
+                            if event.clickCount >= 2 {
+                                // Dobbeltklikk \u{2192} start rename
+                                startRenameBundle(bundle)
+                            } else {
+                                viewModel.setActiveContextBundle(bundle.id)
+                            }
                         }
                     )
                 }
