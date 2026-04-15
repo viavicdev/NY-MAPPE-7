@@ -24,22 +24,16 @@ struct SheetsCollectorView: View {
     private var collectorHeader: some View {
         HStack(spacing: 8) {
             Image(systemName: "tablecells")
-                .font(.system(size: 11, weight: .medium))
+                .font(.system(size: 10, weight: .medium))
                 .foregroundColor(Design.accent)
 
             Text("Tabell")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
                 .foregroundColor(Design.primaryText)
 
             statusPill
 
             Spacer()
-
-            if viewModel.sheetsRowCount > 0 {
-                Text("\(viewModel.sheetsRowCount) rad\(viewModel.sheetsRowCount == 1 ? "" : "er")")
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
-                    .foregroundColor(Design.subtleText)
-            }
 
             Button(action: { showSettings.toggle() }) {
                 Image(systemName: "gearshape")
@@ -62,7 +56,7 @@ struct SheetsCollectorView: View {
             .buttonStyle(Design.InlineActionStyle())
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.vertical, 5)
         .background(Design.accent.opacity(0.04))
     }
 
