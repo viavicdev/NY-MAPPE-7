@@ -30,15 +30,13 @@ struct PromptsView: View {
     // MARK: - Category tiles (icons in rounded squares)
 
     private var categoryTiles: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(sortedCategories) { category in
-                    categoryTile(category)
-                }
+        HStack(spacing: 4) {
+            ForEach(sortedCategories) { category in
+                categoryTile(category)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 2)
         }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 0)
     }
 
     @ViewBuilder
@@ -48,11 +46,11 @@ struct PromptsView: View {
         let hasContent = !category.prompts.isEmpty
 
         ZStack {
-            VStack(spacing: 4) {
+            VStack(spacing: 2) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 10)
+                    RoundedRectangle(cornerRadius: 8)
                         .fill(isActive ? Design.accent.opacity(0.15) : Design.buttonTint)
-                        .frame(width: 32, height: 32)
+                        .frame(width: 30, height: 30)
                         .overlay(
                             RoundedRectangle(cornerRadius: 10)
                                 .stroke(
@@ -85,7 +83,7 @@ struct PromptsView: View {
                             }
                             Spacer()
                         }
-                        .frame(width: 32, height: 32)
+                        .frame(width: 30, height: 30)
                     }
                 }
 
@@ -94,7 +92,7 @@ struct PromptsView: View {
                     .foregroundColor(isActive ? Design.accent : Design.subtleText)
                     .lineLimit(1)
             }
-            .frame(width: 46)
+            .frame(width: 42)
             .allowsHitTesting(false)
 
             // Klikk = sett aktiv, drag = eksporter alle prompts som filer
@@ -105,7 +103,7 @@ struct PromptsView: View {
                 }
             )
         }
-        .frame(width: 46)
+        .frame(width: 42)
         .help(hasContent
               ? "Klikk for \u{00E5} \u{00E5}pne. Dra for \u{00E5} eksportere \(category.prompts.count) prompt\(category.prompts.count == 1 ? "" : "s") som filer."
               : "Klikk for \u{00E5} \u{00E5}pne")
@@ -215,8 +213,8 @@ struct PromptsView: View {
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 2)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 0)
 
             ScrollView {
                 VStack(spacing: 4) {

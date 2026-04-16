@@ -86,7 +86,7 @@ struct KontekstView: View {
                 .foregroundColor(isActive ? Design.primaryText : Design.subtleText)
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 4)
-                .padding(.vertical, 4)
+                .padding(.vertical, 2)
 
                 Rectangle()
                     .frame(height: 2)
