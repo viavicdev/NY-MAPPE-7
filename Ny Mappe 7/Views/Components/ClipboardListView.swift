@@ -912,51 +912,67 @@ struct ClipboardCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(entry.preview)
-                .font(.system(size: 10.5, design: .monospaced))
-                .foregroundColor(Design.primaryText)
-                .lineLimit(isExpanded ? nil : 2)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        ZStack(alignment: .bottom) {
+            // Fast innhold \u{2014} h\u{00F8}yden endres IKKE ved hover
+            VStack(alignment: .leading, spacing: 4) {
+                Text(entry.preview)
+                    .font(.system(size: 10.5, design: .monospaced))
+                    .foregroundColor(Design.primaryText)
+                    .lineLimit(isExpanded ? nil : 2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-            if isLongText {
-                Button(action: {
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        isExpanded.toggle()
+                HStack(spacing: 4) {
+                    Text(entry.formattedDate)
+                        .font(.system(size: 8, weight: .medium, design: .rounded))
+                        .foregroundColor(Design.subtleText.opacity(0.5))
+
+                    Text("\(charCount) tegn")
+                        .font(.system(size: 8, design: .rounded))
+                        .foregroundColor(Design.subtleText.opacity(0.3))
+
+                    if entry.isPinned {
+                        Image(systemName: "pin.fill")
+                            .font(.system(size: 7))
+                            .foregroundColor(Design.accent)
                     }
-                }) {
-                    Text(isExpanded ? "Skjul" : "Les mer")
-                        .font(.system(size: 9, weight: .medium, design: .rounded))
-                        .foregroundColor(Design.accent.opacity(0.7))
+
+                    if isLongText && !isExpanded {
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.15)) { isExpanded = true }
+                        }) {
+                            Text("Les mer")
+                                .font(.system(size: 8, weight: .medium, design: .rounded))
+                                .foregroundColor(Design.accent.opacity(0.7))
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    if isLongText && isExpanded {
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.15)) { isExpanded = false }
+                        }) {
+                            Text("Skjul")
+                                .font(.system(size: 8, weight: .medium, design: .rounded))
+                                .foregroundColor(Design.accent.opacity(0.7))
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    if showCopied {
+                        Text("Kopiert!")
+                            .font(.system(size: 8, weight: .bold, design: .rounded))
+                            .foregroundColor(Design.accent)
+                            .transition(.opacity)
+                    }
+
+                    Spacer()
                 }
-                .buttonStyle(.plain)
             }
 
-            HStack(spacing: 4) {
-                Text(entry.formattedDate)
-                    .font(.system(size: 8, weight: .medium, design: .rounded))
-                    .foregroundColor(Design.subtleText.opacity(0.5))
-
-                Text("\(charCount) tegn")
-                    .font(.system(size: 8, design: .rounded))
-                    .foregroundColor(Design.subtleText.opacity(0.3))
-
-                if entry.isPinned {
-                    Image(systemName: "pin.fill")
-                        .font(.system(size: 7))
-                        .foregroundColor(Design.accent)
-                }
-
-                if showCopied {
-                    Text("Kopiert!")
-                        .font(.system(size: 8, weight: .bold, design: .rounded))
-                        .foregroundColor(Design.accent)
-                        .transition(.opacity)
-                }
-
-                Spacer()
-
-                if isHovered {
+            // Hover-actions som overlay nederst til h\u{00F8}yre (p\u{00E5}virker IKKE korth\u{00F8}yden)
+            if isHovered {
+                HStack(spacing: 4) {
+                    Spacer()
                     HStack(spacing: 4) {
                         Button(action: {
                             viewModel.copyClipboardEntry(entry)

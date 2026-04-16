@@ -1334,19 +1334,60 @@ final class StashViewModel: ObservableObject {
 
     // MARK: - Prompts
 
-    /// Seeder standard prompt-kategorier p\u{00E5} f\u{00F8}rste kj\u{00F8}ring hvis lista er tom.
+    /// Seeder standard prompt-kategorier. Legger til manglende defaults uten
+    /// \u{00E5} r\u{00F8}re eksisterende kategorier brukeren har endret.
     func seedDefaultPromptCategoriesIfNeeded() {
-        guard promptCategories.isEmpty else { return }
-        let defaults: [(String, String)] = [
-            ("Musikk",   "prompt-musikk"),
-            ("Regler",   "prompt-regler"),
-            ("Skriving", "prompt-skriving")
-        ]
-        for (idx, (name, icon)) in defaults.enumerated() {
-            promptCategories.append(PromptCategory(name: name, iconName: icon, sortIndex: idx))
+        struct DefaultCategory {
+            let name: String
+            let icon: String?
+            let prompts: [(String, String)] // (tittel, body)
         }
-        activePromptCategoryId = promptCategories.first?.id
-        scheduleSave()
+
+        let defaults: [DefaultCategory] = [
+            DefaultCategory(name: "Mest brukt", icon: nil, prompts: [
+                ("Skriv om profesjonelt", "Skriv om f\u{00F8}lgende tekst med en profesjonell og tydelig tone. Behold meningsinnholdet.\n\n[lim inn tekst]"),
+                ("Forkort", "Forkort denne teksten til maks 3 setninger uten \u{00E5} miste hovedpoenget.\n\n[lim inn tekst]"),
+                ("Oppsummer i punkter", "Oppsummer f\u{00F8}lgende i 3\u{2013}5 korte punkter:\n\n[lim inn tekst]"),
+                ("Oversett til engelsk", "Oversett f\u{00F8}lgende til naturlig engelsk. Behold tonen.\n\n[lim inn tekst]"),
+                ("Oversett til norsk", "Oversett f\u{00F8}lgende til naturlig norsk (bokm\u{00E5}l). Ikke v\u{00E6}r for formell.\n\n[lim inn tekst]"),
+                ("Gi feedback", "Gi meg ærlig og konstruktiv feedback p\u{00E5} f\u{00F8}lgende. Vær konkret og forsl\u{00E5} forbedringer.\n\n[lim inn tekst]"),
+            ]),
+            DefaultCategory(name: "Kode", icon: nil, prompts: [
+                ("Forklar koden", "Forklar hva denne koden gj\u{00F8}r, steg for steg. Bruk enkelt spr\u{00E5}k.\n\n```\n[lim inn kode]\n```"),
+                ("Finn bugs", "Se over denne koden og identifiser potensielle bugs, edge-cases eller forbedringer.\n\n```\n[lim inn kode]\n```"),
+                ("Skriv tester", "Skriv enhetstester for f\u{00F8}lgende kode. Dekk happy-path og edge-cases.\n\n```\n[lim inn kode]\n```"),
+                ("Refaktorer", "Refaktorer denne koden for bedre lesbarhet og vedlikeholdbarhet uten \u{00E5} endre funksjonaliteten.\n\n```\n[lim inn kode]\n```"),
+                ("Konverter", "Konverter denne koden fra [spr\u{00E5}k A] til [spr\u{00E5}k B]. Behold logikken.\n\n```\n[lim inn kode]\n```"),
+            ]),
+            DefaultCategory(name: "Musikk", icon: "prompt-musikk", prompts: []),
+            DefaultCategory(name: "Regler", icon: "prompt-regler", prompts: []),
+            DefaultCategory(name: "Skriving", icon: "prompt-skriving", prompts: []),
+        ]
+
+        let existingNames = Set(promptCategories.map { $0.name.lowercased() })
+        var added = false
+        let nextIndex = (promptCategories.map { $0.sortIndex }.max() ?? -1) + 1
+
+        for (offset, def) in defaults.enumerated() {
+            guard !existingNames.contains(def.name.lowercased()) else { continue }
+            var cat = PromptCategory(
+                name: def.name,
+                iconName: def.icon,
+                sortIndex: nextIndex + offset
+            )
+            for (title, body) in def.prompts {
+                cat.prompts.append(Prompt(title: title, body: body))
+            }
+            promptCategories.append(cat)
+            added = true
+        }
+
+        if added {
+            if activePromptCategoryId == nil {
+                activePromptCategoryId = promptCategories.first?.id
+            }
+            scheduleSave()
+        }
     }
 
     var activePromptCategory: PromptCategory? {

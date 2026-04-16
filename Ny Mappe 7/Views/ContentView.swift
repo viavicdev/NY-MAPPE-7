@@ -17,7 +17,7 @@ struct ContentView: View {
 
             VStack(spacing: 0) {
                 tabBar
-                if viewModel.isLightVersion && viewModel.activeTab != .tools && viewModel.activeTab != .kontekst {
+                if viewModel.isLightVersion && viewModel.activeTab == .files {
                     simpleToolbar
                 }
 
