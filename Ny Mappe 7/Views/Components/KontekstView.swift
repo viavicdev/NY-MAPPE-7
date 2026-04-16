@@ -47,12 +47,7 @@ struct KontekstView: View {
                 )
             }
             .padding(.horizontal, 8)
-
-            Rectangle()
-                .frame(height: 0.5)
-                .foregroundColor(Design.dividerColor)
         }
-        .background(Design.headerSurface.opacity(0.5))
     }
 
     private func subTabButton(title: String, icon: String, customIcon: String? = nil, count: Int, tab: StashViewModel.KontekstSubTab) -> some View {
@@ -91,7 +86,7 @@ struct KontekstView: View {
                 .foregroundColor(isActive ? Design.primaryText : Design.subtleText)
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 4)
-                .padding(.vertical, 7)
+                .padding(.vertical, 4)
 
                 Rectangle()
                     .frame(height: 2)

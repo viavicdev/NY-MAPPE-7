@@ -216,8 +216,7 @@ struct PromptsView: View {
                 .buttonStyle(.plain)
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 3)
-            .background(Design.headerSurface)
+            .padding(.vertical, 2)
 
             ScrollView {
                 VStack(spacing: 4) {
