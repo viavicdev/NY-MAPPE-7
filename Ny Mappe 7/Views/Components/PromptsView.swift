@@ -17,7 +17,6 @@ struct PromptsView: View {
     var body: some View {
         VStack(spacing: 0) {
             categoryTiles
-            Divider()
 
             if let category = viewModel.activePromptCategory {
                 promptsList(for: category)
@@ -38,7 +37,7 @@ struct PromptsView: View {
                 }
             }
             .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.vertical, 2)
         }
     }
 
@@ -165,11 +164,15 @@ struct PromptsView: View {
                     .buttonStyle(.plain)
                 } else {
                     Text(category.name)
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
                         .foregroundColor(Design.primaryText)
-                    Text("\(category.prompts.count) prompt\(category.prompts.count == 1 ? "" : "s")")
-                        .font(.system(size: 9, design: .rounded))
-                        .foregroundColor(Design.subtleText.opacity(0.7))
+                    Text("\(category.prompts.count)")
+                        .font(.system(size: 8, weight: .bold, design: .monospaced))
+                        .foregroundColor(Design.subtleText.opacity(0.6))
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(Design.buttonTint)
+                        .clipShape(Capsule())
                 }
 
                 Spacer()
@@ -213,7 +216,7 @@ struct PromptsView: View {
                 .buttonStyle(.plain)
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .padding(.vertical, 3)
             .background(Design.headerSurface)
 
             ScrollView {
