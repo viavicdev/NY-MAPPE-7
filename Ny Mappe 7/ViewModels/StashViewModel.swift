@@ -1428,6 +1428,53 @@ final class StashViewModel: ObservableObject {
         return urls
     }
 
+    /// Legger til \u{00E9}n enkelt standard-kategori (med prompts) ved navn.
+    /// Brukes fra Settings-toggles.
+    func seedSinglePromptCategory(name: String) {
+        // Ikke legg til duplikat
+        guard !promptCategories.contains(where: { $0.name.lowercased() == name.lowercased() }) else { return }
+
+        struct DefaultDef {
+            let icon: String?
+            let prompts: [(String, String)]
+        }
+
+        let defs: [String: DefaultDef] = [
+            "mest brukt": DefaultDef(icon: nil, prompts: [
+                ("Skriv om profesjonelt", "Skriv om f\u{00F8}lgende tekst med en profesjonell og tydelig tone. Behold meningsinnholdet.\n\n[lim inn tekst]"),
+                ("Forkort", "Forkort denne teksten til maks 3 setninger uten \u{00E5} miste hovedpoenget.\n\n[lim inn tekst]"),
+                ("Oppsummer i punkter", "Oppsummer f\u{00F8}lgende i 3\u{2013}5 korte punkter:\n\n[lim inn tekst]"),
+                ("Oversett til engelsk", "Oversett f\u{00F8}lgende til naturlig engelsk. Behold tonen.\n\n[lim inn tekst]"),
+                ("Oversett til norsk", "Oversett f\u{00F8}lgende til naturlig norsk (bokm\u{00E5}l). Ikke v\u{00E6}r for formell.\n\n[lim inn tekst]"),
+                ("Gi feedback", "Gi meg \u{00E6}rlig og konstruktiv feedback p\u{00E5} f\u{00F8}lgende. V\u{00E6}r konkret og forsl\u{00E5} forbedringer.\n\n[lim inn tekst]"),
+            ]),
+            "kode": DefaultDef(icon: nil, prompts: [
+                ("Forklar koden", "Forklar hva denne koden gj\u{00F8}r, steg for steg. Bruk enkelt spr\u{00E5}k.\n\n```\n[lim inn kode]\n```"),
+                ("Finn bugs", "Se over denne koden og identifiser potensielle bugs, edge-cases eller forbedringer.\n\n```\n[lim inn kode]\n```"),
+                ("Skriv tester", "Skriv enhetstester for f\u{00F8}lgende kode. Dekk happy-path og edge-cases.\n\n```\n[lim inn kode]\n```"),
+                ("Refaktorer", "Refaktorer denne koden for bedre lesbarhet og vedlikeholdbarhet uten \u{00E5} endre funksjonaliteten.\n\n```\n[lim inn kode]\n```"),
+                ("Konverter", "Konverter denne koden fra [spr\u{00E5}k A] til [spr\u{00E5}k B]. Behold logikken.\n\n```\n[lim inn kode]\n```"),
+            ]),
+            "musikk": DefaultDef(icon: "prompt-musikk", prompts: []),
+            "regler": DefaultDef(icon: "prompt-regler", prompts: []),
+            "skriving": DefaultDef(icon: "prompt-skriving", prompts: []),
+        ]
+
+        guard let def = defs[name.lowercased()] else {
+            // Ukjent kategori \u{2014} lag tom
+            _ = createPromptCategory(name: name)
+            return
+        }
+
+        let nextIndex = (promptCategories.map { $0.sortIndex }.max() ?? -1) + 1
+        var cat = PromptCategory(name: name, iconName: def.icon, sortIndex: nextIndex)
+        for (title, body) in def.prompts {
+            cat.prompts.append(Prompt(title: title, body: body))
+        }
+        promptCategories.append(cat)
+        scheduleSave()
+    }
+
     var activePromptCategory: PromptCategory? {
         guard let id = activePromptCategoryId else { return nil }
         return promptCategories.first(where: { $0.id == id })

@@ -11,6 +11,7 @@ struct SettingsSheet: View {
     @State private var clipboardSectionExpanded = false
     @State private var cleanupSectionExpanded = false
     @State private var standardBundlesExpanded = false
+    @State private var standardPromptsExpanded = false
 
     private struct StandardBundle {
         let name: String
@@ -33,6 +34,7 @@ struct SettingsSheet: View {
                     appearanceSection
                     clipboardSection
                     standardBundlesSection
+                    standardPromptsSection
                     screenshotSection
                     cleanupSection
                     shortcutsSection
@@ -327,6 +329,51 @@ struct SettingsSheet: View {
         .buttonStyle(.plain)
         .disabled(exists)
         .help(exists ? "\(preset.name)-bundle finnes allerede" : "Opprett \(preset.name)-bundle")
+    }
+
+    // MARK: - Standard prompts
+
+    private let defaultPromptNames = ["Mest brukt", "Kode", "Musikk", "Regler", "Skriving"]
+
+    private var standardPromptsSection: some View {
+        collapsibleSettingsGroup(
+            title: "Standard prompts",
+            icon: "text.bubble",
+            isExpanded: $standardPromptsExpanded
+        ) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Sl\u{00E5} av for \u{00E5} fjerne en standard prompt-kategori. Sl\u{00E5} p\u{00E5} for \u{00E5} legge den til igjen.")
+                    .font(.system(size: 9, design: .rounded))
+                    .foregroundColor(Design.subtleText.opacity(0.7))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                ForEach(defaultPromptNames, id: \.self) { name in
+                    let exists = viewModel.promptCategories.contains { $0.name.lowercased() == name.lowercased() }
+                    HStack {
+                        Text(name)
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundColor(Design.primaryText)
+                        Spacer()
+                        Toggle("", isOn: Binding(
+                            get: { exists },
+                            set: { newVal in
+                                if newVal {
+                                    // Seed denne kategorien p\u{00E5} nytt
+                                    viewModel.seedSinglePromptCategory(name: name)
+                                } else {
+                                    // Fjern kategorien
+                                    if let cat = viewModel.promptCategories.first(where: { $0.name.lowercased() == name.lowercased() }) {
+                                        viewModel.deletePromptCategory(id: cat.id)
+                                    }
+                                }
+                            }
+                        ))
+                        .toggleStyle(.switch)
+                        .scaleEffect(0.7)
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Shortcuts

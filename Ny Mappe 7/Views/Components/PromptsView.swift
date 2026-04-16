@@ -32,13 +32,13 @@ struct PromptsView: View {
 
     private var categoryTiles: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 ForEach(sortedCategories) { category in
                     categoryTile(category)
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
         }
     }
 
@@ -53,7 +53,7 @@ struct PromptsView: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: 10)
                         .fill(isActive ? Design.accent.opacity(0.15) : Design.buttonTint)
-                        .frame(width: 46, height: 46)
+                        .frame(width: 32, height: 32)
                         .overlay(
                             RoundedRectangle(cornerRadius: 10)
                                 .stroke(
@@ -64,11 +64,11 @@ struct PromptsView: View {
 
                     if let icon = category.iconName {
                         AppIcon(icon)
-                            .frame(width: 22, height: 22)
+                            .frame(width: 15, height: 15)
                             .foregroundColor(isActive ? Design.accent : Design.primaryText)
                     } else {
                         Image(systemName: "text.bubble")
-                            .font(.system(size: 18))
+                            .font(.system(size: 13))
                             .foregroundColor(isActive ? Design.accent : Design.primaryText)
                     }
 
@@ -82,20 +82,20 @@ struct PromptsView: View {
                                     .padding(.horizontal, 4)
                                     .padding(.vertical, 1)
                                     .background(Capsule().fill(Design.accent))
-                                    .offset(x: 6, y: -6)
+                                    .offset(x: 4, y: -4)
                             }
                             Spacer()
                         }
-                        .frame(width: 46, height: 46)
+                        .frame(width: 32, height: 32)
                     }
                 }
 
                 Text(category.name)
-                    .font(.system(size: 9, weight: isActive ? .bold : .medium, design: .rounded))
+                    .font(.system(size: 8, weight: isActive ? .bold : .medium, design: .rounded))
                     .foregroundColor(isActive ? Design.accent : Design.subtleText)
                     .lineLimit(1)
             }
-            .frame(width: 60)
+            .frame(width: 46)
             .allowsHitTesting(false)
 
             // Klikk = sett aktiv, drag = eksporter alle prompts som filer
@@ -106,7 +106,7 @@ struct PromptsView: View {
                 }
             )
         }
-        .frame(width: 60)
+        .frame(width: 46)
         .help(hasContent
               ? "Klikk for \u{00E5} \u{00E5}pne. Dra for \u{00E5} eksportere \(category.prompts.count) prompt\(category.prompts.count == 1 ? "" : "s") som filer."
               : "Klikk for \u{00E5} \u{00E5}pne")
@@ -234,8 +234,14 @@ struct PromptsView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 36)
                     } else {
-                        ForEach(category.prompts) { prompt in
-                            promptCard(categoryId: category.id, prompt: prompt)
+                        LazyVGrid(columns: [
+                            GridItem(.flexible(), spacing: 6),
+                            GridItem(.flexible(), spacing: 6)
+                        ], alignment: .leading, spacing: 6) {
+                            ForEach(category.prompts) { prompt in
+                                promptCard(categoryId: category.id, prompt: prompt)
+                                    .frame(maxHeight: .infinity, alignment: .top)
+                            }
                         }
                     }
                 }
