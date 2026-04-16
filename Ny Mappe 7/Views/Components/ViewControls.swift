@@ -12,7 +12,7 @@ struct ViewControlsButton: View {
 
     var body: some View {
         Button(action: { showPopover.toggle() }) {
-            Image(systemName: "slider.horizontal.3")
+            Image(systemName: "magnifyingglass")
                 .font(.system(size: 9, weight: .medium))
                 .foregroundColor(Design.subtleText)
                 .frame(width: 22, height: 18)

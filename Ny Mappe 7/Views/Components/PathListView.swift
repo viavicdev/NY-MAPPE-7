@@ -85,18 +85,10 @@ struct PathListView: View {
                         .help("T\u{00F8}m alle (unntatt festede)")
                     }
 
-                    // Action row: st\u{00F8}rrelse-kontroll + kopier-knapp (kun st\u{00F8}rrelse-slider for Filsti)
-                    HStack(spacing: 6) {
-                        ViewControlsButton(
-                            mode: $viewModel.pathsViewMode,
-                            size: $viewModel.pathsViewSize,
-                            hideModeToggle: true,
-                            onChange: { viewModel.scheduleSave() }
-                        )
-
-                        Spacer()
-
-                        if !viewModel.selectedPathIds.isEmpty {
+                    // Action row: kopier-knapp (st\u{00F8}rrelse-slider ligger i sub-tab-raden)
+                    if !viewModel.selectedPathIds.isEmpty {
+                        HStack(spacing: 6) {
+                            Spacer()
                             Button(action: {
                                 viewModel.copySelectedPathEntries()
                             }) {

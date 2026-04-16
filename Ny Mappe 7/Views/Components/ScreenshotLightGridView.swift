@@ -23,51 +23,38 @@ struct ScreenshotLightGridView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Spacer()
-                ViewControlsButton(
-                    mode: $viewModel.screenshotsViewMode,
-                    size: $viewModel.screenshotsViewSize,
-                    onChange: { viewModel.scheduleSave() }
-                )
+        ScrollView {
+            if viewModel.screenshotsViewMode == .list {
+                LazyVStack(spacing: 3) {
+                    ForEach(screenshots) { item in
+                        screenshotListRow(for: item)
+                    }
+                }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-            }
-
-            ScrollView {
-                if viewModel.screenshotsViewMode == .list {
-                    LazyVStack(spacing: 3) {
-                        ForEach(screenshots) { item in
-                            screenshotListRow(for: item)
-                        }
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                } else {
-                    LazyVGrid(columns: adaptiveColumns, spacing: 6) {
-                        ForEach(screenshots) { item in
-                            ScreenshotTile(
-                                item: item,
-                                isSelected: viewModel.selectedItemIds.contains(item.id),
-                                onTap: { flags in
-                                    if flags.contains(.shift) {
-                                        viewModel.selectRange(to: item.id)
-                                    } else if flags.contains(.command) {
-                                        viewModel.toggleSelection(item.id, extending: true)
-                                    } else {
-                                        lightboxItem = item
-                                    }
-                                },
-                                onLongPress: {
+            } else {
+                LazyVGrid(columns: adaptiveColumns, spacing: 6) {
+                    ForEach(screenshots) { item in
+                        ScreenshotTile(
+                            item: item,
+                            isSelected: viewModel.selectedItemIds.contains(item.id),
+                            onTap: { flags in
+                                if flags.contains(.shift) {
+                                    viewModel.selectRange(to: item.id)
+                                } else if flags.contains(.command) {
                                     viewModel.toggleSelection(item.id, extending: true)
+                                } else {
+                                    lightboxItem = item
                                 }
-                            )
-                        }
+                            },
+                            onLongPress: {
+                                viewModel.toggleSelection(item.id, extending: true)
+                            }
+                        )
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
                 }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
             }
         }
         .sheet(item: $lightboxItem) { item in

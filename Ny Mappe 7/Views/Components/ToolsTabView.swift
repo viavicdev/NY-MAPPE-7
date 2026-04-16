@@ -67,6 +67,27 @@ struct ToolsTabView: View {
                     count: viewModel.sheetsRowCount,
                     tab: .sheets
                 )
+
+                // View-kontroller for aktiv sub-tab (kun der det gir mening)
+                switch viewModel.activeToolsTab {
+                case .screenshots:
+                    ViewControlsButton(
+                        mode: $viewModel.screenshotsViewMode,
+                        size: $viewModel.screenshotsViewSize,
+                        onChange: { viewModel.scheduleSave() }
+                    )
+                    .padding(.trailing, 4)
+                case .paths:
+                    ViewControlsButton(
+                        mode: $viewModel.pathsViewMode,
+                        size: $viewModel.pathsViewSize,
+                        hideModeToggle: true,
+                        onChange: { viewModel.scheduleSave() }
+                    )
+                    .padding(.trailing, 4)
+                case .sheets:
+                    EmptyView()
+                }
             }
             .padding(.horizontal, 8)
 
