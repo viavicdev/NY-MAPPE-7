@@ -45,10 +45,10 @@ struct PromptsView: View {
     @ViewBuilder
     private func categoryTile(_ category: PromptCategory) -> some View {
         let isActive = viewModel.activePromptCategoryId == category.id
+        let dragURLs = viewModel.promptCategoryDragURLs(categoryId: category.id)
+        let hasContent = !category.prompts.isEmpty
 
-        Button(action: {
-            viewModel.setActivePromptCategory(category.id)
-        }) {
+        ZStack {
             VStack(spacing: 4) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 10)
@@ -96,9 +96,20 @@ struct PromptsView: View {
                     .lineLimit(1)
             }
             .frame(width: 60)
-            .contentShape(Rectangle())
+            .allowsHitTesting(false)
+
+            // Klikk = sett aktiv, drag = eksporter alle prompts som filer
+            DraggableCardWrapper(
+                urls: dragURLs,
+                onClick: { _ in
+                    viewModel.setActivePromptCategory(category.id)
+                }
+            )
         }
-        .buttonStyle(.plain)
+        .frame(width: 60)
+        .help(hasContent
+              ? "Klikk for \u{00E5} \u{00E5}pne. Dra for \u{00E5} eksportere \(category.prompts.count) prompt\(category.prompts.count == 1 ? "" : "s") som filer."
+              : "Klikk for \u{00E5} \u{00E5}pne")
         .contextMenu {
             Button("Sett som aktiv") {
                 viewModel.setActivePromptCategory(category.id)

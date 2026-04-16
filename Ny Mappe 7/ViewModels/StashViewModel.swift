@@ -1390,6 +1390,44 @@ final class StashViewModel: ObservableObject {
         }
     }
 
+    /// Genererer drabare URLs for alle prompts i en kategori:
+    /// - Tekst-prompts \u{2192} midlertidige .md-filer
+    /// - Fil-prompts \u{2192} lagrede filer fra prompt-storage
+    func promptCategoryDragURLs(categoryId: UUID) -> [URL] {
+        guard let cat = promptCategories.first(where: { $0.id == categoryId }) else { return [] }
+        let fm = FileManager.default
+        let tempDir = fm.temporaryDirectory
+            .appendingPathComponent("PromptExport", isDirectory: true)
+            .appendingPathComponent(categoryId.uuidString, isDirectory: true)
+        try? fm.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+        var urls: [URL] = []
+
+        for prompt in cat.prompts {
+            if let fileName = prompt.fileName {
+                // Fil-prompt \u{2014} bruk den lagrede fila direkte
+                let fileURL = persistence.promptStorageURL(for: categoryId)
+                    .appendingPathComponent(fileName)
+                if fm.fileExists(atPath: fileURL.path) {
+                    urls.append(fileURL)
+                }
+            } else {
+                // Tekst-prompt \u{2014} skriv til midlertidig .md-fil
+                let safeName = prompt.displayTitle
+                    .replacingOccurrences(of: "/", with: "-")
+                    .replacingOccurrences(of: ":", with: "-")
+                    .prefix(60)
+                let tempFile = tempDir.appendingPathComponent("\(safeName).md")
+                let t = prompt.title.trimmingCharacters(in: .whitespacesAndNewlines)
+                let content = t.isEmpty ? prompt.body : "# \(t)\n\n\(prompt.body)"
+                try? content.write(to: tempFile, atomically: true, encoding: .utf8)
+                urls.append(tempFile)
+            }
+        }
+
+        return urls
+    }
+
     var activePromptCategory: PromptCategory? {
         guard let id = activePromptCategoryId else { return nil }
         return promptCategories.first(where: { $0.id == id })
