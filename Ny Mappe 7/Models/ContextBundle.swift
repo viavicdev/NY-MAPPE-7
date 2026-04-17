@@ -11,6 +11,8 @@ struct ContextBundle: Identifiable, Codable, Hashable {
     var iconName: String?
     /// Filsti til et opplastet custom-ikon (PNG/SVG/JPG). Overstyrer iconName hvis satt.
     var customIconPath: String?
+    /// Skjul navnet i UI (viser kun ikon).
+    var hideName: Bool
 
     init(
         id: UUID = UUID(),
@@ -20,7 +22,8 @@ struct ContextBundle: Identifiable, Codable, Hashable {
         sortIndex: Int = 0,
         colorHex: String? = nil,
         iconName: String? = nil,
-        customIconPath: String? = nil
+        customIconPath: String? = nil,
+        hideName: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -30,11 +33,12 @@ struct ContextBundle: Identifiable, Codable, Hashable {
         self.colorHex = colorHex
         self.iconName = iconName
         self.customIconPath = customIconPath
+        self.hideName = hideName
     }
 
     // Bakoverkompatibel decoding: eldre bundles har ikke iconName
     enum CodingKeys: String, CodingKey {
-        case id, name, items, createdAt, sortIndex, colorHex, iconName, customIconPath
+        case id, name, items, createdAt, sortIndex, colorHex, iconName, customIconPath, hideName
     }
 
     init(from decoder: Decoder) throws {
@@ -47,6 +51,7 @@ struct ContextBundle: Identifiable, Codable, Hashable {
         colorHex = try c.decodeIfPresent(String.self, forKey: .colorHex)
         iconName = try c.decodeIfPresent(String.self, forKey: .iconName)
         customIconPath = try c.decodeIfPresent(String.self, forKey: .customIconPath)
+        hideName = try c.decodeIfPresent(Bool.self, forKey: .hideName) ?? false
     }
 
     var fileItemCount: Int {

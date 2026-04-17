@@ -109,13 +109,67 @@ struct ContentView: View {
 
     // MARK: - Keyboard Monitor
 
+    private static let mainPanelIdentifier = "no.klippegeni.NyMappe7.MainPanel"
+
+    /// Observatorer som reinstallerer/avinstallerer keyboard-monitor basert p\u{00E5} key window.
+    @State private var keyBecomeObserver: NSObjectProtocol?
+    @State private var keyResignObserver: NSObjectProtocol?
+
     private func installKeyboardMonitor() {
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            return handleKeyEvent(event) ? nil : event
+        // Observer: n\u{00E5}r hovedpanelet blir key, installer monitor.
+        keyBecomeObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didBecomeKeyNotification,
+            object: nil,
+            queue: .main
+        ) { notif in
+            guard let win = notif.object as? NSWindow,
+                  win.identifier?.rawValue == Self.mainPanelIdentifier else { return }
+            startKeyMonitor()
+        }
+        // Observer: n\u{00E5}r hovedpanelet mister key, avinstaller monitor.
+        keyResignObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didResignKeyNotification,
+            object: nil,
+            queue: .main
+        ) { notif in
+            guard let win = notif.object as? NSWindow,
+                  win.identifier?.rawValue == Self.mainPanelIdentifier else { return }
+            stopKeyMonitor()
+        }
+
+        // Initial: installer hvis hovedpanelet allerede er key
+        if NSApp.keyWindow?.identifier?.rawValue == Self.mainPanelIdentifier {
+            startKeyMonitor()
         }
     }
 
     private func removeKeyboardMonitor() {
+        stopKeyMonitor()
+        if let o = keyBecomeObserver { NotificationCenter.default.removeObserver(o); keyBecomeObserver = nil }
+        if let o = keyResignObserver { NotificationCenter.default.removeObserver(o); keyResignObserver = nil }
+    }
+
+    private func startKeyMonitor() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            // Ekstra sikkerhetsnett: hvis tekstfelt har fokus i hovedpanelet
+            // (rename, s\u{00F8}k), la redigerings-shortcuts g\u{00E5} gjennom.
+            if let responder = NSApp.keyWindow?.firstResponder,
+               responder is NSText || responder is NSTextView {
+                let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+                let chars = event.charactersIgnoringModifiers ?? ""
+                if flags == .command && "cvxaz".contains(chars) {
+                    return event
+                }
+                if flags.isEmpty && [51, 117, 123, 124, 125, 126].contains(Int(event.keyCode)) {
+                    return event
+                }
+            }
+            return handleKeyEvent(event) ? nil : event
+        }
+    }
+
+    private func stopKeyMonitor() {
         if let monitor = keyMonitor {
             NSEvent.removeMonitor(monitor)
             keyMonitor = nil
@@ -124,6 +178,12 @@ struct ContentView: View {
 
     private func handleKeyEvent(_ event: NSEvent) -> Bool {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+
+        // Cmd+Q: Lukk hele appen
+        if flags == .command && event.charactersIgnoringModifiers == "q" {
+            NSApplication.shared.terminate(nil)
+            return true
+        }
 
         // Cmd+1/2/3/4: Switch tabs
         if flags == .command, let chars = event.charactersIgnoringModifiers {

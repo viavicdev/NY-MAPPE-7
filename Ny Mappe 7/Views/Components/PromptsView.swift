@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 struct PromptsView: View {
     @ObservedObject var viewModel: StashViewModel
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var renamingCategoryId: UUID?
     @State private var renameBuffer: String = ""
@@ -68,6 +69,7 @@ struct PromptsView: View {
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 26, height: 26)
                             .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .colorInvert(enabled: colorScheme == .dark)
                     } else if let icon = category.iconName {
                         AppIcon(icon)
                             .frame(width: 20, height: 20)
@@ -97,10 +99,12 @@ struct PromptsView: View {
                 }
                 .frame(width: 40, height: 40)
 
-                Text(category.name)
-                    .font(.system(size: 9, weight: isActive ? .bold : .medium, design: .rounded))
-                    .foregroundColor(isActive ? Design.accent : Design.subtleText)
-                    .lineLimit(1)
+                if !category.hideName {
+                    Text(category.name)
+                        .font(.system(size: 9, weight: isActive ? .bold : .medium, design: .rounded))
+                        .foregroundColor(isActive ? Design.accent : Design.subtleText)
+                        .lineLimit(1)
+                }
             }
             .frame(width: 48)
             .allowsHitTesting(false)
@@ -135,6 +139,22 @@ struct PromptsView: View {
             if category.customIconPath != nil {
                 Button("Fjern custom ikon") {
                     viewModel.clearPromptCategoryCustomIcon(id: category.id)
+                }
+            }
+            Button(category.hideName ? "Vis navn" : "Skjul navn") {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    viewModel.togglePromptCategoryHideName(id: category.id)
+                }
+            }
+            Divider()
+            Button("Flytt venstre") {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    viewModel.movePromptCategory(id: category.id, by: -1)
+                }
+            }
+            Button("Flytt h\u{00F8}yre") {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    viewModel.movePromptCategory(id: category.id, by: 1)
                 }
             }
             Divider()

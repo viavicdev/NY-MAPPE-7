@@ -313,3 +313,18 @@ enum Design {
         badgeColor(for: category)
     }
 }
+
+// MARK: - Conditional colorInvert
+
+extension View {
+    /// Inverterer farger kun n\u{00E5}r `enabled` er true. Brukes til custom-ikoner
+    /// s\u{00E5} svart-p\u{00E5}-transparent blir hvit-p\u{00E5}-transparent i m\u{00F8}rk modus.
+    @ViewBuilder
+    func colorInvert(enabled: Bool) -> some View {
+        if enabled {
+            self.colorInvert()
+        } else {
+            self
+        }
+    }
+}

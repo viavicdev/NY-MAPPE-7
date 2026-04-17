@@ -2341,4 +2341,50 @@ final class StashViewModel: ObservableObject {
         promptCategories[idx].customIconPath = nil
         scheduleSave()
     }
+
+    // MARK: - Hide name (icon-only display)
+
+    func toggleContextBundleHideName(id: UUID) {
+        guard let idx = contextBundles.firstIndex(where: { $0.id == id }) else { return }
+        contextBundles[idx].hideName.toggle()
+        scheduleSave()
+    }
+
+    func togglePromptCategoryHideName(id: UUID) {
+        guard let idx = promptCategories.firstIndex(where: { $0.id == id }) else { return }
+        promptCategories[idx].hideName.toggle()
+        scheduleSave()
+    }
+
+    // MARK: - Reorder (move left/right)
+
+    func moveContextBundle(id: UUID, by offset: Int) {
+        var ordered = contextBundles.sorted { $0.sortIndex < $1.sortIndex }
+        guard let fromIdx = ordered.firstIndex(where: { $0.id == id }) else { return }
+        let toIdx = max(0, min(ordered.count - 1, fromIdx + offset))
+        guard toIdx != fromIdx else { return }
+        let item = ordered.remove(at: fromIdx)
+        ordered.insert(item, at: toIdx)
+        for (i, b) in ordered.enumerated() {
+            if let mainIdx = contextBundles.firstIndex(where: { $0.id == b.id }) {
+                contextBundles[mainIdx].sortIndex = i
+            }
+        }
+        scheduleSave()
+    }
+
+    func movePromptCategory(id: UUID, by offset: Int) {
+        var ordered = promptCategories.sorted { $0.sortIndex < $1.sortIndex }
+        guard let fromIdx = ordered.firstIndex(where: { $0.id == id }) else { return }
+        let toIdx = max(0, min(ordered.count - 1, fromIdx + offset))
+        guard toIdx != fromIdx else { return }
+        let item = ordered.remove(at: fromIdx)
+        ordered.insert(item, at: toIdx)
+        for (i, c) in ordered.enumerated() {
+            if let mainIdx = promptCategories.firstIndex(where: { $0.id == c.id }) {
+                promptCategories[mainIdx].sortIndex = i
+            }
+        }
+        scheduleSave()
+    }
 }

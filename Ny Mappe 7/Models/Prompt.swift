@@ -75,6 +75,8 @@ struct PromptCategory: Identifiable, Codable, Hashable {
     var iconName: String?
     /// Filsti til et opplastet custom-ikon. Overstyrer iconName.
     var customIconPath: String?
+    /// Skjul navnet i UI (viser kun ikon).
+    var hideName: Bool
     var prompts: [Prompt]
     let createdAt: Date
     var sortIndex: Int
@@ -84,6 +86,7 @@ struct PromptCategory: Identifiable, Codable, Hashable {
         name: String,
         iconName: String? = nil,
         customIconPath: String? = nil,
+        hideName: Bool = false,
         prompts: [Prompt] = [],
         createdAt: Date = Date(),
         sortIndex: Int = 0
@@ -92,13 +95,14 @@ struct PromptCategory: Identifiable, Codable, Hashable {
         self.name = name
         self.iconName = iconName
         self.customIconPath = customIconPath
+        self.hideName = hideName
         self.prompts = prompts
         self.createdAt = createdAt
         self.sortIndex = sortIndex
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, iconName, customIconPath, prompts, createdAt, sortIndex
+        case id, name, iconName, customIconPath, hideName, prompts, createdAt, sortIndex
     }
 
     init(from decoder: Decoder) throws {
@@ -107,6 +111,7 @@ struct PromptCategory: Identifiable, Codable, Hashable {
         name = try c.decode(String.self, forKey: .name)
         iconName = try c.decodeIfPresent(String.self, forKey: .iconName)
         customIconPath = try c.decodeIfPresent(String.self, forKey: .customIconPath)
+        hideName = try c.decodeIfPresent(Bool.self, forKey: .hideName) ?? false
         prompts = try c.decode([Prompt].self, forKey: .prompts)
         createdAt = try c.decode(Date.self, forKey: .createdAt)
         sortIndex = try c.decode(Int.self, forKey: .sortIndex)

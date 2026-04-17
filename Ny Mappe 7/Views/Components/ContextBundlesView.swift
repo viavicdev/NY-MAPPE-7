@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 struct ContextBundlesView: View {
     @ObservedObject var viewModel: StashViewModel
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var showNewBundleField = false
     @State private var newBundleName = ""
@@ -173,6 +174,7 @@ struct ContextBundlesView: View {
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 14, height: 14)
                             .clipShape(RoundedRectangle(cornerRadius: 3))
+                            .colorInvert(enabled: colorScheme == .dark)
                     } else if let icon = bundle.iconName {
                         AppIcon(icon)
                             .frame(width: 10, height: 10)
@@ -186,8 +188,10 @@ struct ContextBundlesView: View {
                             .onSubmit { commitRenameBundle() }
                             .frame(minWidth: 60, maxWidth: 140)
                     } else {
-                        Text(bundle.name)
-                            .font(.system(size: 10, weight: isActive ? .bold : .medium, design: .rounded))
+                        if !bundle.hideName {
+                            Text(bundle.name)
+                                .font(.system(size: 10, weight: isActive ? .bold : .medium, design: .rounded))
+                        }
                         if bundle.items.count > 0 {
                             Text("\(bundle.items.count)")
                                 .font(.system(size: 8, weight: .bold, design: .monospaced))
@@ -241,6 +245,22 @@ struct ContextBundlesView: View {
                 if bundle.customIconPath != nil {
                     Button("Fjern custom ikon") {
                         viewModel.clearContextBundleCustomIcon(id: bundle.id)
+                    }
+                }
+                Button(bundle.hideName ? "Vis navn" : "Skjul navn") {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        viewModel.toggleContextBundleHideName(id: bundle.id)
+                    }
+                }
+                Divider()
+                Button("Flytt venstre") {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        viewModel.moveContextBundle(id: bundle.id, by: -1)
+                    }
+                }
+                Button("Flytt h\u{00F8}yre") {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        viewModel.moveContextBundle(id: bundle.id, by: 1)
                     }
                 }
                 Divider()

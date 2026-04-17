@@ -41,8 +41,9 @@ class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
             button.image = NSImage(systemSymbolName: "tray.and.arrow.down.fill", accessibilityDescription: "Ny Mappe (7)")
             button.image?.size = NSSize(width: 18, height: 18)
             button.image?.isTemplate = true
-            button.action = #selector(togglePanel)
+            button.action = #selector(statusItemClicked(_:))
             button.target = self
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
 
         // Create the floating panel (340 = enkel, 520 = full)
@@ -58,6 +59,7 @@ class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
         let hostingView = NSHostingView(rootView: contentView)
         panel.contentView = hostingView
         panel.title = "Ny Mappe (7)"
+        panel.identifier = NSUserInterfaceItemIdentifier("no.klippegeni.NyMappe7.MainPanel")
         panel.titlebarAppearsTransparent = true
         panel.titleVisibility = .hidden
         panel.isMovableByWindowBackground = true
@@ -172,6 +174,37 @@ class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
         }
         panel.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc func statusItemClicked(_ sender: NSStatusBarButton) {
+        let event = NSApp.currentEvent
+        if event?.type == .rightMouseUp || (event?.modifierFlags.contains(.control) ?? false) {
+            showStatusMenu()
+        } else {
+            togglePanel()
+        }
+    }
+
+    private func showStatusMenu() {
+        let menu = NSMenu()
+        let show = NSMenuItem(title: "Vis/skjul panel", action: #selector(togglePanel), keyEquivalent: "")
+        show.target = self
+        menu.addItem(show)
+        let notes = NSMenuItem(title: "Vis/skjul Quick Notes", action: #selector(toggleQuickNotePanel), keyEquivalent: "")
+        notes.target = self
+        menu.addItem(notes)
+        menu.addItem(NSMenuItem.separator())
+        let quit = NSMenuItem(title: "Lukk Ny Mappe (7)", action: #selector(quitApp), keyEquivalent: "q")
+        quit.target = self
+        menu.addItem(quit)
+
+        statusItem.menu = menu
+        statusItem.button?.performClick(nil)
+        statusItem.menu = nil // reset s\u{00E5} venstreklikk fortsatt kaller action
+    }
+
+    @objc func quitApp() {
+        NSApp.terminate(nil)
     }
 
     @objc func togglePanel() {
