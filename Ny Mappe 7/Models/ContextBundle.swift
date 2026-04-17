@@ -9,6 +9,8 @@ struct ContextBundle: Identifiable, Codable, Hashable {
     var colorHex: String?
     /// Navn p\u{00E5} custom SVG-ikon i Resources/Icons/ (uten .svg). nil = standard ikon.
     var iconName: String?
+    /// Filsti til et opplastet custom-ikon (PNG/SVG/JPG). Overstyrer iconName hvis satt.
+    var customIconPath: String?
 
     init(
         id: UUID = UUID(),
@@ -17,7 +19,8 @@ struct ContextBundle: Identifiable, Codable, Hashable {
         createdAt: Date = Date(),
         sortIndex: Int = 0,
         colorHex: String? = nil,
-        iconName: String? = nil
+        iconName: String? = nil,
+        customIconPath: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -26,11 +29,12 @@ struct ContextBundle: Identifiable, Codable, Hashable {
         self.sortIndex = sortIndex
         self.colorHex = colorHex
         self.iconName = iconName
+        self.customIconPath = customIconPath
     }
 
     // Bakoverkompatibel decoding: eldre bundles har ikke iconName
     enum CodingKeys: String, CodingKey {
-        case id, name, items, createdAt, sortIndex, colorHex, iconName
+        case id, name, items, createdAt, sortIndex, colorHex, iconName, customIconPath
     }
 
     init(from decoder: Decoder) throws {
@@ -42,6 +46,7 @@ struct ContextBundle: Identifiable, Codable, Hashable {
         sortIndex = try c.decode(Int.self, forKey: .sortIndex)
         colorHex = try c.decodeIfPresent(String.self, forKey: .colorHex)
         iconName = try c.decodeIfPresent(String.self, forKey: .iconName)
+        customIconPath = try c.decodeIfPresent(String.self, forKey: .customIconPath)
     }
 
     var fileItemCount: Int {

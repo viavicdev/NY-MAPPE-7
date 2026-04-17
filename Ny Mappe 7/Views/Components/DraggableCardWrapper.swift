@@ -14,23 +14,27 @@ enum InternalDragState {
 struct DraggableCardWrapper: NSViewRepresentable {
     let urls: [URL]
     let onClick: (NSEvent) -> Void
+    var onDoubleClick: (() -> Void)? = nil
 
     func makeNSView(context: Context) -> CardDragNSView {
         let view = CardDragNSView()
         view.urls = urls
         view.onClick = onClick
+        view.onDoubleClick = onDoubleClick
         return view
     }
 
     func updateNSView(_ nsView: CardDragNSView, context: Context) {
         nsView.urls = urls
         nsView.onClick = onClick
+        nsView.onDoubleClick = onDoubleClick
     }
 }
 
 class CardDragNSView: NSView, NSDraggingSource {
     var urls: [URL] = []
     var onClick: ((NSEvent) -> Void)?
+    var onDoubleClick: (() -> Void)?
     private var mouseDownEvent: NSEvent?
     private var didDrag = false
 
@@ -68,7 +72,11 @@ class CardDragNSView: NSView, NSDraggingSource {
 
     override func mouseUp(with event: NSEvent) {
         if !didDrag {
-            onClick?(event)
+            if event.clickCount >= 2, let doubleHandler = onDoubleClick {
+                doubleHandler()
+            } else {
+                onClick?(event)
+            }
         }
         mouseDownEvent = nil
         didDrag = false
@@ -91,14 +99,25 @@ class CardDragNSView: NSView, NSDraggingSource {
         var draggingItems: [NSDraggingItem] = []
 
         for url in urls {
-            let pasteboardItem = NSPasteboardItem()
-            pasteboardItem.setString(url.absoluteString, forType: .fileURL)
+            // NSURL er bedre pasteboard writer enn NSPasteboardItem \u{2014} gir
+            // riktige UTI-er som web-apper, chatter, browsere forventer (ikke bare Finder).
+            let draggingItem = NSDraggingItem(pasteboardWriter: url as NSURL)
 
-            let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
-            let dragImage = NSWorkspace.shared.icon(forFile: url.path)
-            dragImage.size = NSSize(width: 32, height: 32)
+            // For bildefiler: bruk faktisk bilde-thumbnail som drag-preview, ikke generisk filikon.
+            let dragImage: NSImage
+            if let img = NSImage(contentsOf: url), img.isValid {
+                dragImage = img
+            } else {
+                dragImage = NSWorkspace.shared.icon(forFile: url.path)
+            }
+            let maxSide: CGFloat = 64
+            let aspect = dragImage.size.width / max(dragImage.size.height, 1)
+            let frameSize: NSSize = aspect >= 1
+                ? NSSize(width: maxSide, height: maxSide / aspect)
+                : NSSize(width: maxSide * aspect, height: maxSide)
+            dragImage.size = frameSize
             draggingItem.setDraggingFrame(
-                NSRect(x: 0, y: 0, width: 32, height: 32),
+                NSRect(origin: .zero, size: frameSize),
                 contents: dragImage
             )
             draggingItems.append(draggingItem)

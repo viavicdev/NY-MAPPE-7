@@ -17,9 +17,6 @@ struct ContentView: View {
 
             VStack(spacing: 0) {
                 tabBar
-                if viewModel.isLightVersion && viewModel.activeTab == .files {
-                    simpleToolbar
-                }
 
                 // Set selector (full mode, files tab only)
                 if !viewModel.isLightVersion && viewModel.activeTab == .files {
@@ -35,44 +32,7 @@ struct ContentView: View {
                 } else if viewModel.activeTab == .kontekst {
                     KontekstView(viewModel: viewModel)
                 } else {
-                    VStack(spacing: 6) {
-                        // Header (stats + filters/sorting, full mode only)
-                        if viewModel.currentSetItemCount > 0 && !viewModel.isLightVersion {
-                            HeaderView(viewModel: viewModel, showFilters: true)
-                                .padding(.horizontal, 12)
-                                .padding(.top, 0)
-                        }
-
-                        // Error banner
-                        if viewModel.showError, let msg = viewModel.errorMessage {
-                            ErrorBanner(message: msg) {
-                                withAnimation {
-                                    viewModel.showError = false
-                                }
-                            }
-                        }
-
-                        // Toolbar (only on files tab, full mode only)
-                        if viewModel.activeTab == .files && !viewModel.isLightVersion {
-                            ToolbarView(viewModel: viewModel, isFullMode: true)
-                                .padding(.horizontal, 12)
-                                .padding(.top, viewModel.currentSetItemCount > 0 ? 0 : 6)
-                        }
-
-                        // Cards grid or empty state
-                        if viewModel.currentItems.isEmpty && !viewModel.isImporting {
-                            EmptyStateView(isScreenshotTab: false)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                        } else {
-                            CardsGridView(viewModel: viewModel)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        }
-
-                        // Action bar
-                        if viewModel.currentSetItemCount > 0 {
-                            ActionBarView(viewModel: viewModel)
-                        }
-                    }
+                    FilerTabView(viewModel: viewModel)
                 }
             }
 
@@ -212,11 +172,9 @@ struct ContentView: View {
                 viewModel.selectAllClipboardEntries()
             case .tools:
                 switch viewModel.activeToolsTab {
-                case .screenshots:
-                    viewModel.selectAll()
                 case .paths:
                     viewModel.selectAllPathEntries()
-                case .sheets:
+                case .sheets, .shortcuts:
                     break
                 }
             case .kontekst:
@@ -225,9 +183,9 @@ struct ContentView: View {
             return true
         }
 
-        // Cmd+V: Paste files (files tab or tools/screenshots)
+        // Cmd+V: Paste files (files tab — b\u{00E5}de filer og skjermbilde)
         if flags == .command && event.charactersIgnoringModifiers == "v" {
-            if viewModel.activeTab == .files || (viewModel.activeTab == .tools && viewModel.activeToolsTab == .screenshots) {
+            if viewModel.activeTab == .files {
                 viewModel.importFromPasteboard()
                 return true
             }
@@ -251,19 +209,12 @@ struct ContentView: View {
                 }
             case .tools:
                 switch viewModel.activeToolsTab {
-                case .screenshots:
-                    if !viewModel.selectedItemIds.isEmpty {
-                        withAnimation(.easeInOut(duration: 0.25)) {
-                            viewModel.removeSelected()
-                        }
-                        return true
-                    }
                 case .paths:
                     if !viewModel.selectedPathIds.isEmpty {
                         withAnimation { viewModel.removeSelectedPathEntries() }
                         return true
                     }
-                case .sheets:
+                case .sheets, .shortcuts:
                     break
                 }
             case .kontekst:
@@ -274,8 +225,7 @@ struct ContentView: View {
 
         // Space: Quick Look first selected file
         if flags.isEmpty && event.keyCode == 49 {
-            let isFileLikeTab = viewModel.activeTab == .files || (viewModel.activeTab == .tools && viewModel.activeToolsTab == .screenshots)
-            if isFileLikeTab {
+            if viewModel.activeTab == .files {
                 if let first = viewModel.selectedItems.first {
                     NSWorkspace.shared.open(first.stagedURL)
                     return true
@@ -300,17 +250,12 @@ struct ContentView: View {
                 }
             case .tools:
                 switch viewModel.activeToolsTab {
-                case .screenshots:
-                    if !viewModel.selectedItemIds.isEmpty {
-                        viewModel.selectedItemIds.removeAll()
-                        hadSelection = true
-                    }
                 case .paths:
                     if !viewModel.selectedPathIds.isEmpty {
                         viewModel.selectedPathIds.removeAll()
                         hadSelection = true
                     }
-                case .sheets:
+                case .sheets, .shortcuts:
                     break
                 }
             case .kontekst:
@@ -423,7 +368,7 @@ struct ContentView: View {
 
     private var simpleStatsCount: Int {
         switch viewModel.activeTab {
-        case .files: return viewModel.fileCount
+        case .files: return viewModel.fileCount + viewModel.screenshotCount
         case .clipboard: return viewModel.clipboardCount
         case .tools: return viewModel.toolsCount
         case .kontekst: return viewModel.kontekstCount
@@ -498,6 +443,25 @@ struct ContentView: View {
         }
         .buttonStyle(.plain)
         .help("Innstillinger")
+    }
+
+    // MARK: - Quick Note Button
+
+    private var quickNoteButton: some View {
+        Button(action: {
+            if let delegate = NSApplication.shared.delegate as? MenuBarAppDelegate {
+                delegate.toggleQuickNotePanel()
+            }
+        }) {
+            Image(systemName: "note.text")
+                .font(.system(size: 12, weight: .light))
+                .foregroundColor(Design.subtleText)
+                .padding(3)
+                .background(Design.buttonTint)
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help("Notater")
     }
 
     // MARK: - Bottom Bar (simple mode: settings + close)
@@ -589,12 +553,16 @@ struct ContentView: View {
 
     private var tabBar: some View {
         HStack(spacing: 0) {
-            tabButton(title: "Filer", icon: "doc.on.doc", customIcon: "filer", count: viewModel.fileCount, tab: .files)
+            tabButton(title: "Filer", icon: "doc.on.doc", customIcon: "filer", count: viewModel.fileCount + viewModel.screenshotCount, tab: .files)
             tabButton(title: "Utklipp", icon: "doc.on.clipboard", customIcon: "utklipp", count: viewModel.clipboardCount, tab: .clipboard)
-            tabButton(title: "Kontekst", icon: "sparkles", customIcon: nil, count: viewModel.kontekstCount, tab: .kontekst)
+            tabButton(title: "Kontekst", icon: "sparkles", customIcon: "kontekst", count: viewModel.kontekstCount, tab: .kontekst)
             tabButton(title: "Tools", icon: "wrench.and.screwdriver", customIcon: nil, count: viewModel.toolsCount, tab: .tools)
 
-            // Settings p\u{00E5} h\u{00F8}yre side, p\u{00E5} samme rad
+            // Notater + Settings p\u{00E5} h\u{00F8}yre side
+            quickNoteButton
+                .frame(width: 20, height: 20)
+                .padding(.trailing, 2)
+
             settingsButton
                 .frame(width: 20, height: 20)
                 .padding(.horizontal, 6)

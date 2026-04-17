@@ -59,6 +59,7 @@ SOURCES=(
     "$SRC_DIR/Models/ContextBundle.swift"
     "$SRC_DIR/Models/Prompt.swift"
     "$SRC_DIR/Models/PathEntry.swift"
+    "$SRC_DIR/Models/FinderShortcut.swift"
     "$SRC_DIR/ViewModels/StashViewModel.swift"
     "$SRC_DIR/Services/StagingService.swift"
     "$SRC_DIR/Services/ThumbnailService.swift"
@@ -91,10 +92,12 @@ SOURCES=(
     "$SRC_DIR/Views/Components/KontekstView.swift"
     "$SRC_DIR/Views/Components/BatchRenameSheet.swift"
     "$SRC_DIR/Views/Components/PathListView.swift"
+    "$SRC_DIR/Views/Components/FilerTabView.swift"
     "$SRC_DIR/Views/Components/SettingsSheet.swift"
     "$SRC_DIR/Views/Components/SheetsCollectorView.swift"
     "$SRC_DIR/Views/Components/SheetsTabView.swift"
     "$SRC_DIR/Views/Components/ToolsTabView.swift"
+    "$SRC_DIR/Views/Components/FinderShortcutsView.swift"
 )
 
 FRAMEWORKS="-framework SwiftUI -framework AppKit -framework QuickLookThumbnailing -framework UniformTypeIdentifiers"

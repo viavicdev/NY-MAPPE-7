@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct SettingsSheet: View {
     @ObservedObject var viewModel: StashViewModel
@@ -37,6 +38,7 @@ struct SettingsSheet: View {
                     standardPromptsSection
                     screenshotSection
                     cleanupSection
+                    finderShortcutsSection
                     shortcutsSection
                 }
                 .padding(16)
@@ -333,7 +335,19 @@ struct SettingsSheet: View {
 
     // MARK: - Standard prompts
 
-    private let defaultPromptNames = ["Mest brukt", "Kode", "Musikk", "Regler", "Skriving"]
+    private struct StandardPrompt {
+        let name: String
+        let iconName: String?
+        let emoji: String
+    }
+
+    private let standardPrompts: [StandardPrompt] = [
+        .init(name: "Mest brukt", iconName: "prompt-mest-brukt", emoji: "\u{2B50}"),
+        .init(name: "Kode",       iconName: nil,             emoji: "\u{1F4BB}"),
+        .init(name: "Musikk",     iconName: "prompt-musikk", emoji: "\u{1F3B5}"),
+        .init(name: "Regler",     iconName: "prompt-regler", emoji: "\u{1F4CF}"),
+        .init(name: "Skriving",   iconName: "prompt-skriving", emoji: "\u{270D}\u{FE0F}"),
+    ]
 
     private var standardPromptsSection: some View {
         collapsibleSettingsGroup(
@@ -342,35 +356,173 @@ struct SettingsSheet: View {
             isExpanded: $standardPromptsExpanded
         ) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Sl\u{00E5} av for \u{00E5} fjerne en standard prompt-kategori. Sl\u{00E5} p\u{00E5} for \u{00E5} legge den til igjen.")
+                Text("Klikk for \u{00E5} legge til en ferdig prompt-kategori med eksempler. Du kan endre, gi nytt navn eller slette i Kontekst \u{2192} Prompts.")
                     .font(.system(size: 9, design: .rounded))
                     .foregroundColor(Design.subtleText.opacity(0.7))
                     .fixedSize(horizontal: false, vertical: true)
 
-                ForEach(defaultPromptNames, id: \.self) { name in
-                    let exists = viewModel.promptCategories.contains { $0.name.lowercased() == name.lowercased() }
-                    HStack {
-                        Text(name)
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
-                            .foregroundColor(Design.primaryText)
-                        Spacer()
-                        Toggle("", isOn: Binding(
-                            get: { exists },
-                            set: { newVal in
-                                if newVal {
-                                    // Seed denne kategorien p\u{00E5} nytt
-                                    viewModel.seedSinglePromptCategory(name: name)
-                                } else {
-                                    // Fjern kategorien
-                                    if let cat = viewModel.promptCategories.first(where: { $0.name.lowercased() == name.lowercased() }) {
-                                        viewModel.deletePromptCategory(id: cat.id)
-                                    }
-                                }
-                            }
-                        ))
-                        .toggleStyle(.switch)
-                        .scaleEffect(0.7)
+                LazyVGrid(columns: [
+                    GridItem(.flexible(), spacing: 6),
+                    GridItem(.flexible(), spacing: 6)
+                ], spacing: 6) {
+                    ForEach(standardPrompts, id: \.name) { preset in
+                        standardPromptButton(preset)
                     }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func standardPromptButton(_ preset: StandardPrompt) -> some View {
+        let exists = viewModel.promptCategories.contains { $0.name.lowercased() == preset.name.lowercased() }
+
+        Button(action: {
+            if exists {
+                if let cat = viewModel.promptCategories.first(where: { $0.name.lowercased() == preset.name.lowercased() }) {
+                    viewModel.deletePromptCategory(id: cat.id)
+                    viewModel.showToast("\(preset.name) fjernet")
+                }
+            } else {
+                viewModel.seedSinglePromptCategory(name: preset.name)
+                viewModel.showToast("\(preset.name) lagt til i Prompts")
+            }
+        }) {
+            HStack(spacing: 6) {
+                Group {
+                    if let icon = preset.iconName {
+                        AppIcon(icon)
+                            .frame(width: 14, height: 14)
+                            .foregroundColor(exists ? Design.accent : Design.subtleText)
+                    } else {
+                        Text(preset.emoji)
+                            .font(.system(size: 12))
+                    }
+                }
+                Text(preset.name)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundColor(exists ? Design.accent : Design.primaryText)
+                Spacer(minLength: 0)
+                Image(systemName: exists ? "checkmark.circle.fill" : "plus.circle")
+                    .font(.system(size: 10))
+                    .foregroundColor(exists ? Design.accent : Design.subtleText.opacity(0.5))
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(exists ? Design.accent.opacity(0.1) : Design.buttonTint)
+            .clipShape(RoundedRectangle(cornerRadius: 7))
+            .overlay(
+                RoundedRectangle(cornerRadius: 7)
+                    .stroke(exists ? Design.accent.opacity(0.3) : Design.buttonBorder, lineWidth: 0.5)
+            )
+        }
+        .buttonStyle(.plain)
+        .help(exists ? "Fjern \(preset.name)-kategori" : "Opprett \(preset.name)-kategori")
+    }
+
+    // MARK: - Finder Shortcuts
+
+    private var finderShortcutsSection: some View {
+        settingsGroup(title: "Finder-snarveier", icon: "folder.fill") {
+            VStack(spacing: 6) {
+                if viewModel.finderShortcuts.isEmpty {
+                    Text("Ingen snarveier lagt til enn\u{00E5}.")
+                        .font(.system(size: 10, design: .rounded))
+                        .foregroundColor(Design.subtleText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    ForEach(viewModel.sortedFinderShortcuts) { shortcut in
+                        finderShortcutEditRow(shortcut)
+                    }
+                }
+
+                Button(action: addShortcutViaOpenPanel) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 10))
+                        Text("Legg til mappe")
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    }
+                    .foregroundColor(Design.accent)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Design.accent.opacity(0.12))
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(Design.accent.opacity(0.3), lineWidth: 0.5))
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 4)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func finderShortcutEditRow(_ shortcut: FinderShortcut) -> some View {
+        let nameBinding = Binding<String>(
+            get: { shortcut.name },
+            set: { viewModel.updateFinderShortcut(id: shortcut.id, name: $0) }
+        )
+        let emojiBinding = Binding<String>(
+            get: { shortcut.emoji },
+            set: {
+                // Kun f\u{00F8}rste tegn som emoji
+                let first = String($0.prefix(1))
+                viewModel.updateFinderShortcut(id: shortcut.id, emoji: first)
+            }
+        )
+
+        HStack(spacing: 6) {
+            TextField("\u{1F4C1}", text: emojiBinding)
+                .textFieldStyle(.plain)
+                .font(.system(size: 14))
+                .frame(width: 26, height: 24)
+                .background(Design.buttonTint)
+                .clipShape(RoundedRectangle(cornerRadius: 5))
+                .multilineTextAlignment(.center)
+
+            VStack(alignment: .leading, spacing: 1) {
+                TextField("Navn", text: nameBinding)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundColor(Design.primaryText)
+                Text(shortcut.path)
+                    .font(.system(size: 8, design: .monospaced))
+                    .foregroundColor(Design.subtleText.opacity(0.7))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+
+            Spacer(minLength: 0)
+
+            Button(action: {
+                withAnimation { viewModel.removeFinderShortcut(id: shortcut.id) }
+            }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(Design.subtleText.opacity(0.6))
+                    .padding(4)
+            }
+            .buttonStyle(.plain)
+            .help("Slett snarvei")
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(Design.buttonTint.opacity(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
+
+    private func addShortcutViaOpenPanel() {
+        let panel = NSOpenPanel()
+        panel.title = "Velg mappe"
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = true
+        panel.level = .floating
+        panel.begin { response in
+            if response == .OK {
+                for url in panel.urls {
+                    viewModel.addFinderShortcut(url: url)
                 }
             }
         }

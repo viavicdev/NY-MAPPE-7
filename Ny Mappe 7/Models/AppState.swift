@@ -24,6 +24,7 @@ struct AppState: Codable {
     var activeContextBundleId: UUID?
     var promptCategories: [PromptCategory]
     var activePromptCategoryId: UUID?
+    var finderShortcuts: [FinderShortcut]
     // View-preferanser per fane (grid/list + st\u{00F8}rrelse 0.0\u{2013}1.0)
     var filesViewMode: ViewMode
     var filesViewSize: Double
@@ -60,6 +61,7 @@ struct AppState: Codable {
         activeContextBundleId: UUID? = nil,
         promptCategories: [PromptCategory] = [],
         activePromptCategoryId: UUID? = nil,
+        finderShortcuts: [FinderShortcut] = [],
         filesViewMode: ViewMode = .grid,
         filesViewSize: Double = 0.3,
         clipboardViewMode: ViewMode = .grid,
@@ -94,6 +96,7 @@ struct AppState: Codable {
         self.activeContextBundleId = activeContextBundleId
         self.promptCategories = promptCategories
         self.activePromptCategoryId = activePromptCategoryId
+        self.finderShortcuts = finderShortcuts
         self.filesViewMode = filesViewMode
         self.filesViewSize = filesViewSize
         self.clipboardViewMode = clipboardViewMode
@@ -116,6 +119,7 @@ struct AppState: Codable {
         case quickNotes, lastOpenedQuickNoteId
         case contextBundles, activeContextBundleId
         case promptCategories, activePromptCategoryId
+        case finderShortcuts
         case filesViewMode, filesViewSize
         case clipboardViewMode, clipboardViewSize
         case pathsViewMode, pathsViewSize
@@ -148,6 +152,7 @@ struct AppState: Codable {
         activeContextBundleId = try container.decodeIfPresent(UUID.self, forKey: .activeContextBundleId)
         promptCategories = (try? container.decodeIfPresent([PromptCategory].self, forKey: .promptCategories)) ?? []
         activePromptCategoryId = try container.decodeIfPresent(UUID.self, forKey: .activePromptCategoryId)
+        finderShortcuts = (try? container.decodeIfPresent([FinderShortcut].self, forKey: .finderShortcuts)) ?? []
         filesViewMode = try container.decodeIfPresent(ViewMode.self, forKey: .filesViewMode) ?? .grid
         filesViewSize = try container.decodeIfPresent(Double.self, forKey: .filesViewSize) ?? 0.5
         clipboardViewMode = try container.decodeIfPresent(ViewMode.self, forKey: .clipboardViewMode) ?? .grid

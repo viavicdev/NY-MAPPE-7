@@ -14,7 +14,7 @@ struct CardsGridView: View {
     }
 
     private var isScreenshotContext: Bool {
-        viewModel.activeTab == .tools && viewModel.activeToolsTab == .screenshots
+        viewModel.activeTab == .files && viewModel.activeFilesTab == .screenshots
     }
 
     /// Mapper size 0.0\u{2013}1.0 til grid-kolonne-minimum.
@@ -195,6 +195,7 @@ struct CardsGridView: View {
                     .padding(8)
             }
         }
+        .help("\(item.fileName) \u{2014} \(item.formattedSize)")
         .onDrop(of: [.text], isTargeted: nil) { providers in
             guard viewModel.sortOption == .manual else { return false }
             guard let provider = providers.first else { return false }

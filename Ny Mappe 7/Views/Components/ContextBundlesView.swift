@@ -78,9 +78,9 @@ struct ContextBundlesView: View {
                             newBundleFocused = true
                         }) {
                             Image(systemName: "plus")
-                                .font(.system(size: 10, weight: .bold))
+                                .font(.system(size: 8, weight: .bold))
                                 .foregroundColor(Design.accent)
-                                .frame(width: 22, height: 22)
+                                .frame(width: 16, height: 16)
                                 .background(Design.accent.opacity(0.12))
                                 .clipShape(Circle())
                                 .overlay(Circle().stroke(Design.accent.opacity(0.3), lineWidth: 0.5))
@@ -166,7 +166,14 @@ struct ContextBundlesView: View {
         VStack(spacing: 0) {
             ZStack {
                 HStack(spacing: 4) {
-                    if let icon = bundle.iconName {
+                    if let customPath = bundle.customIconPath,
+                       let nsImage = NSImage(contentsOfFile: customPath) {
+                        Image(nsImage: nsImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 14, height: 14)
+                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                    } else if let icon = bundle.iconName {
                         AppIcon(icon)
                             .frame(width: 10, height: 10)
                     }
@@ -199,13 +206,11 @@ struct ContextBundlesView: View {
                 if !isRenaming {
                     DraggableCardWrapper(
                         urls: urls,
-                        onClick: { event in
-                            if event.clickCount >= 2 {
-                                // Dobbeltklikk \u{2192} start rename
-                                startRenameBundle(bundle)
-                            } else {
-                                viewModel.setActiveContextBundle(bundle.id)
-                            }
+                        onClick: { _ in
+                            viewModel.setActiveContextBundle(bundle.id)
+                        },
+                        onDoubleClick: {
+                            openBundleIconPicker(for: bundle.id)
                         }
                     )
                 }
@@ -220,8 +225,8 @@ struct ContextBundlesView: View {
         }
         .fixedSize()
         .help(hasFiles
-              ? "Klikk for \u{00E5} sette aktiv. Dra for \u{00E5} eksportere \(urls.count) fil\(urls.count == 1 ? "" : "er") til en annen app."
-              : "Klikk for \u{00E5} sette aktiv")
+              ? "Klikk = sett aktiv. Dobbeltklikk = endre ikon. Dra = eksporter \(urls.count) fil\(urls.count == 1 ? "" : "er")."
+              : "Klikk = sett aktiv. Dobbeltklikk = endre ikon.")
         .contextMenu {
             if !isRenaming {
                 Button("Sett som aktiv") {
@@ -230,10 +235,36 @@ struct ContextBundlesView: View {
                 Button("Gi nytt navn\u{2026}") {
                     startRenameBundle(bundle)
                 }
+                Button("Endre ikon\u{2026}") {
+                    openBundleIconPicker(for: bundle.id)
+                }
+                if bundle.customIconPath != nil {
+                    Button("Fjern custom ikon") {
+                        viewModel.clearContextBundleCustomIcon(id: bundle.id)
+                    }
+                }
                 Divider()
                 Button("Slett bundle", role: .destructive) {
                     withAnimation { viewModel.deleteContextBundle(id: bundle.id) }
                 }
+            }
+        }
+    }
+
+    /// \u{00C5}pner NSOpenPanel for \u{00E5} velge custom ikon (PNG/JPG/SVG/etc).
+    private func openBundleIconPicker(for bundleId: UUID) {
+        let panel = NSOpenPanel()
+        panel.title = "Velg ikon"
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.level = .floating
+        var types: [UTType] = [.png, .jpeg, .tiff, .gif, .image]
+        if let svg = UTType("public.svg-image") { types.append(svg) }
+        panel.allowedContentTypes = types
+        panel.begin { response in
+            if response == .OK, let url = panel.urls.first {
+                viewModel.setContextBundleCustomIcon(id: bundleId, sourceURL: url)
             }
         }
     }

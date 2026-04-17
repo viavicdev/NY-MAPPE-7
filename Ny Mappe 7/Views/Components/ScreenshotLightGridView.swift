@@ -116,18 +116,22 @@ struct ScreenshotLightGridView: View {
                 .stroke(isSelected ? Design.accent.opacity(0.5) : Color.clear, lineWidth: 1)
         )
         .contentShape(Rectangle())
-        .onTapGesture(count: 2) { lightboxItem = item }
-        .onTapGesture(count: 1) {
-            let flags = NSApp.currentEvent?.modifierFlags ?? []
-            if flags.contains(.shift) {
-                viewModel.selectRange(to: item.id)
-            } else {
-                viewModel.toggleSelection(item.id, extending: flags.contains(.command))
-            }
-        }
-        .onDrag {
-            NSItemProvider(contentsOf: item.stagedURL) ?? NSItemProvider(object: item.stagedURL as NSURL)
-        }
+        .overlay(
+            DraggableCardWrapper(
+                urls: [item.stagedURL],
+                onClick: { event in
+                    let flags = event.modifierFlags
+                    if flags.contains(.shift) {
+                        viewModel.selectRange(to: item.id)
+                    } else {
+                        viewModel.toggleSelection(item.id, extending: flags.contains(.command))
+                    }
+                },
+                onDoubleClick: {
+                    lightboxItem = item
+                }
+            )
+        )
     }
 }
 
@@ -172,9 +176,28 @@ private struct ScreenshotTile: View {
                         Spacer()
                     }
                 }
+
+                if isHovered {
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Spacer()
+                            Text(timestampString)
+                                .font(.system(size: 9, weight: .medium, design: .rounded))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(Color.black.opacity(0.7))
+                                .clipShape(Capsule())
+                                .padding(6)
+                        }
+                    }
+                    .transition(.opacity)
+                }
             }
             .frame(width: side, height: side)
             .clipShape(RoundedRectangle(cornerRadius: 8))
+            .animation(.easeInOut(duration: 0.15), value: isHovered)
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(
@@ -185,17 +208,18 @@ private struct ScreenshotTile: View {
                     )
             )
             .contentShape(RoundedRectangle(cornerRadius: 8))
-            .onTapGesture {
-                let flags = NSApp.currentEvent?.modifierFlags ?? []
-                onTap(flags)
-            }
-            .onLongPressGesture(perform: onLongPress)
             .onHover { hovering in
                 isHovered = hovering
             }
-            .onDrag {
-                NSItemProvider(object: item.stagedURL as NSURL)
-            }
+            .overlay(
+                // NSView-wrapper h\u{00E5}ndterer klikk+drag og blokkerer window-drag
+                DraggableCardWrapper(
+                    urls: [item.stagedURL],
+                    onClick: { event in
+                        onTap(event.modifierFlags)
+                    }
+                )
+            )
         }
         .aspectRatio(1.0, contentMode: .fit)
     }
@@ -206,6 +230,13 @@ private struct ScreenshotTile: View {
             return img
         }
         return NSImage(contentsOfFile: item.stagedURL.path)
+    }
+
+    private var timestampString: String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "nb_NO")
+        f.dateFormat = "d. MMM HH:mm"
+        return f.string(from: item.dateAdded)
     }
 }
 

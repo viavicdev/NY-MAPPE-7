@@ -56,7 +56,7 @@ struct SheetsCollectorView: View {
             .buttonStyle(Design.InlineActionStyle())
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 5)
+        .padding(.vertical, 2)
         .background(Design.accent.opacity(0.04))
     }
 

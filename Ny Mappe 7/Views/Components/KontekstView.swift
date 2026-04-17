@@ -3,51 +3,41 @@ import SwiftUI
 struct KontekstView: View {
     @ObservedObject var viewModel: StashViewModel
 
-    private var activeSubCount: Int {
-        switch viewModel.activeKontekstTab {
-        case .bundles: return viewModel.contextBundles.count
-        case .prompts: return viewModel.promptCategories.count
-        }
-    }
-
-    private var activeSubLabel: String {
-        let c = activeSubCount
-        switch viewModel.activeKontekstTab {
-        case .bundles: return "\(c) bundle\(c == 1 ? "" : "s")"
-        case .prompts: return "\(c) kategori\(c == 1 ? "" : "er")"
-        }
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             subTabBar
             content
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Sub-Tab Bar
 
     private var subTabBar: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                subTabButton(
-                    title: "Bundles",
-                    icon: "shippingbox",
-                    customIcon: nil,
-                    count: viewModel.contextBundles.count,
-                    tab: .bundles
-                )
-                subTabButton(
-                    title: "Prompts",
-                    icon: "text.bubble",
-                    customIcon: "prompt-bank",
-                    count: viewModel.promptCategories.count,
-                    tab: .prompts
-                )
-            }
-            .padding(.horizontal, 8)
+        HStack(spacing: 0) {
+            subTabButton(
+                title: "Bundles",
+                icon: "shippingbox",
+                customIcon: nil,
+                count: viewModel.contextBundles.count,
+                tab: .bundles
+            )
+            subTabButton(
+                title: "Prompts",
+                icon: "text.bubble",
+                customIcon: "prompt-bank",
+                count: viewModel.promptCategories.count,
+                tab: .prompts
+            )
         }
+        .padding(.horizontal, 8)
+        .fixedSize(horizontal: false, vertical: true)
+        .background(.ultraThinMaterial)
+        .overlay(
+            Rectangle()
+                .frame(height: 0.5)
+                .foregroundColor(Design.dividerColor),
+            alignment: .bottom
+        )
     }
 
     private func subTabButton(title: String, icon: String, customIcon: String? = nil, count: Int, tab: StashViewModel.KontekstSubTab) -> some View {
@@ -86,7 +76,7 @@ struct KontekstView: View {
                 .foregroundColor(isActive ? Design.primaryText : Design.subtleText)
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 4)
-                .padding(.vertical, 2)
+                .padding(.vertical, 4)
 
                 Rectangle()
                     .frame(height: 2)

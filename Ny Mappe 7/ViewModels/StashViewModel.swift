@@ -83,6 +83,7 @@ final class StashViewModel: ObservableObject {
     }
     @Published var pathEntries: [PathEntry] = []
     @Published var selectedPathIds: Set<UUID> = []
+    @Published var finderShortcuts: [FinderShortcut] = []
     @Published var lastSelectedPathId: UUID?
     @Published var lastSelectedClipboardId: UUID?
     @Published var autoCleanupFilesDays: Int? = nil
@@ -104,10 +105,15 @@ final class StashViewModel: ObservableObject {
         case kontekst
     }
 
-    enum ToolsSubTab {
+    enum FilesSubTab {
+        case files
         case screenshots
+    }
+
+    enum ToolsSubTab {
         case paths
         case sheets
+        case shortcuts
     }
 
     enum KontekstSubTab {
@@ -115,7 +121,8 @@ final class StashViewModel: ObservableObject {
         case prompts
     }
 
-    @Published var activeToolsTab: ToolsSubTab = .screenshots
+    @Published var activeFilesTab: FilesSubTab = .files
+    @Published var activeToolsTab: ToolsSubTab = .paths
     @Published var activeKontekstTab: KontekstSubTab = .bundles
 
     // MARK: - Services
@@ -140,14 +147,17 @@ final class StashViewModel: ObservableObject {
         // Filter by active tab
         switch activeTab {
         case .files:
-            filtered = filtered.filter { !$0.isScreenshot }
+            switch activeFilesTab {
+            case .files:
+                filtered = filtered.filter { !$0.isScreenshot }
+            case .screenshots:
+                filtered = filtered.filter { $0.isScreenshot }
+            }
         case .clipboard:
             return []
         case .tools:
             switch activeToolsTab {
-            case .screenshots:
-                filtered = filtered.filter { $0.isScreenshot }
-            case .paths, .sheets:
+            case .paths, .sheets, .shortcuts:
                 return []
             }
         case .kontekst:
@@ -197,7 +207,7 @@ final class StashViewModel: ObservableObject {
     }
 
     var toolsCount: Int {
-        screenshotCount + pathCount + sheetsRowCount
+        pathCount + sheetsRowCount + finderShortcuts.count
     }
 
     var kontekstCount: Int {
@@ -275,6 +285,7 @@ final class StashViewModel: ObservableObject {
             self.activeContextBundleId = state.activeContextBundleId
             self.promptCategories = state.promptCategories
             self.activePromptCategoryId = state.activePromptCategoryId
+            self.finderShortcuts = state.finderShortcuts
             self.filesViewMode = state.filesViewMode
             self.filesViewSize = state.filesViewSize
             self.clipboardViewMode = state.clipboardViewMode
@@ -351,6 +362,7 @@ final class StashViewModel: ObservableObject {
                 activeContextBundleId: self.activeContextBundleId,
                 promptCategories: self.promptCategories,
                 activePromptCategoryId: self.activePromptCategoryId,
+                finderShortcuts: self.finderShortcuts,
                 filesViewMode: self.filesViewMode,
                 filesViewSize: self.filesViewSize,
                 clipboardViewMode: self.clipboardViewMode,
@@ -1344,7 +1356,7 @@ final class StashViewModel: ObservableObject {
         }
 
         let defaults: [DefaultCategory] = [
-            DefaultCategory(name: "Mest brukt", icon: nil, prompts: [
+            DefaultCategory(name: "Mest brukt", icon: "prompt-mest-brukt", prompts: [
                 ("Skriv om profesjonelt", "Skriv om f\u{00F8}lgende tekst med en profesjonell og tydelig tone. Behold meningsinnholdet.\n\n[lim inn tekst]"),
                 ("Forkort", "Forkort denne teksten til maks 3 setninger uten \u{00E5} miste hovedpoenget.\n\n[lim inn tekst]"),
                 ("Oppsummer i punkter", "Oppsummer f\u{00F8}lgende i 3\u{2013}5 korte punkter:\n\n[lim inn tekst]"),
@@ -1440,7 +1452,7 @@ final class StashViewModel: ObservableObject {
         }
 
         let defs: [String: DefaultDef] = [
-            "mest brukt": DefaultDef(icon: nil, prompts: [
+            "mest brukt": DefaultDef(icon: "prompt-mest-brukt", prompts: [
                 ("Skriv om profesjonelt", "Skriv om f\u{00F8}lgende tekst med en profesjonell og tydelig tone. Behold meningsinnholdet.\n\n[lim inn tekst]"),
                 ("Forkort", "Forkort denne teksten til maks 3 setninger uten \u{00E5} miste hovedpoenget.\n\n[lim inn tekst]"),
                 ("Oppsummer i punkter", "Oppsummer f\u{00F8}lgende i 3\u{2013}5 korte punkter:\n\n[lim inn tekst]"),
@@ -2226,6 +2238,107 @@ final class StashViewModel: ObservableObject {
                 items[mainIdx].sortIndex = index
             }
         }
+        scheduleSave()
+    }
+
+    // MARK: - Finder Shortcuts
+
+    var sortedFinderShortcuts: [FinderShortcut] {
+        finderShortcuts.sorted { $0.sortIndex < $1.sortIndex }
+    }
+
+    @discardableResult
+    func addFinderShortcut(path: String, name: String? = nil, emoji: String = "") -> FinderShortcut {
+        let url = URL(fileURLWithPath: path)
+        let resolvedName = (name?.isEmpty == false ? name : nil) ?? url.lastPathComponent
+        let nextIndex = (finderShortcuts.map { $0.sortIndex }.max() ?? -1) + 1
+        let shortcut = FinderShortcut(
+            name: resolvedName,
+            path: path,
+            emoji: emoji,
+            sortIndex: nextIndex
+        )
+        finderShortcuts.append(shortcut)
+        scheduleSave()
+        return shortcut
+    }
+
+    func addFinderShortcut(url: URL, emoji: String = "") {
+        addFinderShortcut(path: url.path, name: url.lastPathComponent, emoji: emoji)
+    }
+
+    func removeFinderShortcut(id: UUID) {
+        finderShortcuts.removeAll { $0.id == id }
+        scheduleSave()
+    }
+
+    func updateFinderShortcut(id: UUID, name: String? = nil, path: String? = nil, emoji: String? = nil) {
+        guard let idx = finderShortcuts.firstIndex(where: { $0.id == id }) else { return }
+        if let name = name { finderShortcuts[idx].name = name }
+        if let path = path { finderShortcuts[idx].path = path }
+        if let emoji = emoji { finderShortcuts[idx].emoji = emoji }
+        scheduleSave()
+    }
+
+    func moveFinderShortcut(id: UUID, to newIndex: Int) {
+        guard let fromIdx = finderShortcuts.firstIndex(where: { $0.id == id }) else { return }
+        let clamped = max(0, min(newIndex, finderShortcuts.count - 1))
+        let item = finderShortcuts.remove(at: fromIdx)
+        finderShortcuts.insert(item, at: clamped)
+        for (i, _) in finderShortcuts.enumerated() {
+            finderShortcuts[i].sortIndex = i
+        }
+        scheduleSave()
+    }
+
+    func openFinderShortcut(_ shortcut: FinderShortcut) {
+        let url = shortcut.url
+        if FileManager.default.fileExists(atPath: url.path) {
+            NSWorkspace.shared.open(url)
+        } else {
+            showToast("Finner ikke \(shortcut.displayName)", duration: 2.5)
+        }
+    }
+
+    // MARK: - Custom Icons
+
+    func setContextBundleCustomIcon(id: UUID, sourceURL: URL) {
+        guard let idx = contextBundles.firstIndex(where: { $0.id == id }) else { return }
+        let old = contextBundles[idx].customIconPath
+        if let newPath = persistence.saveCustomIcon(sourceURL: sourceURL, replacing: old) {
+            contextBundles[idx].customIconPath = newPath
+            scheduleSave()
+        } else {
+            showToast("Kunne ikke lagre ikonet", duration: 2.5)
+        }
+    }
+
+    func clearContextBundleCustomIcon(id: UUID) {
+        guard let idx = contextBundles.firstIndex(where: { $0.id == id }) else { return }
+        if let path = contextBundles[idx].customIconPath {
+            persistence.removeCustomIcon(at: path)
+        }
+        contextBundles[idx].customIconPath = nil
+        scheduleSave()
+    }
+
+    func setPromptCategoryCustomIcon(id: UUID, sourceURL: URL) {
+        guard let idx = promptCategories.firstIndex(where: { $0.id == id }) else { return }
+        let old = promptCategories[idx].customIconPath
+        if let newPath = persistence.saveCustomIcon(sourceURL: sourceURL, replacing: old) {
+            promptCategories[idx].customIconPath = newPath
+            scheduleSave()
+        } else {
+            showToast("Kunne ikke lagre ikonet", duration: 2.5)
+        }
+    }
+
+    func clearPromptCategoryCustomIcon(id: UUID) {
+        guard let idx = promptCategories.firstIndex(where: { $0.id == id }) else { return }
+        if let path = promptCategories[idx].customIconPath {
+            persistence.removeCustomIcon(at: path)
+        }
+        promptCategories[idx].customIconPath = nil
         scheduleSave()
     }
 }

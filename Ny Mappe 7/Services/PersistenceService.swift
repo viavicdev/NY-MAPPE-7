@@ -148,4 +148,34 @@ final class PersistenceService {
             .appendingPathComponent(categoryId.uuidString, isDirectory: true)
         try? fileManager.removeItem(at: url)
     }
+
+    // MARK: - Custom Icons
+
+    /// Mappe for opplastede custom-ikoner (bundles og prompt-kategorier).
+    private var customIconsURL: URL {
+        let url = appSupportURL.appendingPathComponent("CustomIcons", isDirectory: true)
+        try? fileManager.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    /// Kopierer en valgt bildefil inn i app-mappen og returnerer full filsti til kopien.
+    /// Gjenbruker samme UUID-prefiks hvis en gammel sti sendes inn \u{2014} og sletter den gamle.
+    func saveCustomIcon(sourceURL: URL, replacing oldPath: String? = nil) -> String? {
+        if let old = oldPath {
+            try? fileManager.removeItem(atPath: old)
+        }
+        let ext = sourceURL.pathExtension.isEmpty ? "png" : sourceURL.pathExtension
+        let name = "\(UUID().uuidString).\(ext)"
+        let dest = customIconsURL.appendingPathComponent(name)
+        do {
+            try fileManager.copyItem(at: sourceURL, to: dest)
+            return dest.path
+        } catch {
+            return nil
+        }
+    }
+
+    func removeCustomIcon(at path: String) {
+        try? fileManager.removeItem(atPath: path)
+    }
 }

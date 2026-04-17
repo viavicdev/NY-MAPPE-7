@@ -5,40 +5,26 @@ struct ToolsTabView: View {
 
     private var activeSubCount: Int {
         switch viewModel.activeToolsTab {
-        case .screenshots: return viewModel.screenshotCount
         case .paths: return viewModel.pathCount
         case .sheets: return viewModel.sheetsRowCount
+        case .shortcuts: return viewModel.finderShortcuts.count
         }
     }
 
     private var activeSubLabel: String {
         let c = activeSubCount
         switch viewModel.activeToolsTab {
-        case .screenshots: return "\(c) skjermbilde"
         case .paths: return "\(c) filsti"
         case .sheets: return "\(c) rader"
+        case .shortcuts: return "\(c) snarvei\(c == 1 ? "" : "er")"
         }
     }
 
     var body: some View {
         VStack(spacing: 0) {
             subTabBar
-
-            if activeSubCount > 0 {
-                HStack(spacing: 4) {
-                    Text(activeSubLabel)
-                        .font(Design.captionFont)
-                        .foregroundColor(Design.subtleText)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 14)
-                .padding(.top, 6)
-                .padding(.bottom, 2)
-            }
-
             toolsContent
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Sub-Tab Bar
@@ -46,13 +32,6 @@ struct ToolsTabView: View {
     private var subTabBar: some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
-                subTabButton(
-                    title: "Skjermbilde",
-                    icon: "camera.viewfinder",
-                    customIcon: "skjermbilde",
-                    count: viewModel.screenshotCount,
-                    tab: .screenshots
-                )
                 subTabButton(
                     title: "Filsti",
                     icon: "folder",
@@ -67,16 +46,16 @@ struct ToolsTabView: View {
                     count: viewModel.sheetsRowCount,
                     tab: .sheets
                 )
+                subTabButton(
+                    title: "Snarveier",
+                    icon: "folder.fill",
+                    customIcon: nil,
+                    count: viewModel.finderShortcuts.count,
+                    tab: .shortcuts
+                )
 
                 // View-kontroller for aktiv sub-tab (kun der det gir mening)
                 switch viewModel.activeToolsTab {
-                case .screenshots:
-                    ViewControlsButton(
-                        mode: $viewModel.screenshotsViewMode,
-                        size: $viewModel.screenshotsViewSize,
-                        onChange: { viewModel.scheduleSave() }
-                    )
-                    .padding(.trailing, 4)
                 case .paths:
                     ViewControlsButton(
                         mode: $viewModel.pathsViewMode,
@@ -85,7 +64,7 @@ struct ToolsTabView: View {
                         onChange: { viewModel.scheduleSave() }
                     )
                     .padding(.trailing, 4)
-                case .sheets:
+                case .sheets, .shortcuts:
                     EmptyView()
                 }
             }
@@ -95,7 +74,8 @@ struct ToolsTabView: View {
                 .frame(height: 0.5)
                 .foregroundColor(Design.dividerColor)
         }
-        .background(Design.headerSurface.opacity(0.5))
+        .background(.ultraThinMaterial)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private func subTabButton(title: String, icon: String, customIcon: String? = nil, count: Int, tab: StashViewModel.ToolsSubTab) -> some View {
@@ -134,7 +114,7 @@ struct ToolsTabView: View {
                 .foregroundColor(isActive ? Design.primaryText : Design.subtleText)
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 4)
-                .padding(.vertical, 7)
+                .padding(.vertical, 4)
 
                 Rectangle()
                     .frame(height: 2)
@@ -153,33 +133,12 @@ struct ToolsTabView: View {
     @ViewBuilder
     private var toolsContent: some View {
         switch viewModel.activeToolsTab {
-        case .screenshots:
-            screenshotsContent
         case .paths:
             PathListView(viewModel: viewModel)
         case .sheets:
             sheetsContent
-        }
-    }
-
-    // MARK: - Screenshots
-
-    @ViewBuilder
-    private var screenshotsContent: some View {
-        if viewModel.currentItems.isEmpty && !viewModel.isImporting {
-            EmptyStateView(isScreenshotTab: true)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        } else if viewModel.isLightVersion {
-            // Tettere 3-kolonne-grid i enkel modus, med lightbox ved tap
-            ScreenshotLightGridView(viewModel: viewModel)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
-            CardsGridView(viewModel: viewModel)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-
-        if viewModel.currentSetItemCount > 0 {
-            ActionBarView(viewModel: viewModel)
+        case .shortcuts:
+            FinderShortcutsView(viewModel: viewModel)
         }
     }
 

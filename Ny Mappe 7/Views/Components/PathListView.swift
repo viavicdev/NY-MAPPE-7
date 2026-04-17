@@ -4,118 +4,56 @@ import AppKit
 struct PathListView: View {
     @ObservedObject var viewModel: StashViewModel
 
+    /// Adaptive grid kolonner som skalerer med size-slider.
+    /// Lav slider = smale kort (2 per rad), h\u{00F8}y = brede (1 per rad).
+    private var adaptivePathColumns: [GridItem] {
+        let minWidth = 180 + CGFloat(viewModel.pathsViewSize) * 220
+        return [GridItem(.adaptive(minimum: minWidth), spacing: 6)]
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            // Path header
-            if !viewModel.pathEntries.isEmpty {
-                VStack(spacing: 4) {
-                    HStack {
-                        if !viewModel.selectedPathIds.isEmpty {
-                            Text("\(viewModel.selectedPathIds.count) valgt")
-                                .font(Design.captionFont)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Design.accent.opacity(0.15))
-                                .foregroundColor(Design.accent)
-                                .clipShape(Capsule())
-                        }
+            // Selection-info p\u{00E5} toppen (kun n\u{00E5}r noe er valgt)
+            if !viewModel.selectedPathIds.isEmpty {
+                HStack(spacing: 6) {
+                    Text("\(viewModel.selectedPathIds.count) valgt")
+                        .font(Design.captionFont)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Design.accent.opacity(0.15))
+                        .foregroundColor(Design.accent)
+                        .clipShape(Capsule())
 
-                        Spacer()
+                    Spacer()
 
-                        // Select all / Deselect all
-                        if viewModel.selectedPathIds.count == viewModel.pathEntries.count {
-                            Button(action: {
-                                withAnimation(.easeInOut(duration: 0.1)) {
-                                    viewModel.deselectAllPathEntries()
-                                }
-                            }) {
-                                HStack(spacing: 3) {
-                                    Image(systemName: "xmark.circle")
-                                        .font(.system(size: 10))
-                                    Text("Fjern valg")
-                                        .font(Design.captionFont)
-                                }
-                                .foregroundColor(Design.subtleText)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .background(Design.buttonTint)
-                                .clipShape(Capsule())
-                                .overlay(Capsule().stroke(Design.buttonBorder, lineWidth: 0.5))
-                            }
-                            .buttonStyle(.plain)
-                        } else {
-                            Button(action: {
-                                withAnimation(.easeInOut(duration: 0.1)) {
-                                    viewModel.selectAllPathEntries()
-                                }
-                            }) {
-                                HStack(spacing: 3) {
-                                    Image(systemName: "checkmark.circle")
-                                        .font(.system(size: 10))
-                                    Text("Velg alle")
-                                        .font(Design.captionFont)
-                                }
-                                .foregroundColor(Design.subtleText)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .background(Design.buttonTint)
-                                .clipShape(Capsule())
-                                .overlay(Capsule().stroke(Design.buttonBorder, lineWidth: 0.5))
-                            }
-                            .buttonStyle(.plain)
+                    Button(action: {
+                        viewModel.copySelectedPathEntries()
+                    }) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "doc.on.doc")
+                                .font(.system(size: 9))
+                            Text("Kopier paths")
+                                .font(.system(size: 10, weight: .semibold, design: .rounded))
                         }
-
-                        Button(action: {
-                            withAnimation { viewModel.clearPathEntries() }
-                        }) {
-                            HStack(spacing: 3) {
-                                Image(systemName: "trash")
-                                    .font(.system(size: 10))
-                                Text("T\u{00F8}m")
-                                    .font(Design.captionFont)
-                            }
-                            .foregroundColor(Design.subtleText)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(Design.buttonTint)
-                            .clipShape(Capsule())
-                            .overlay(Capsule().stroke(Design.buttonBorder, lineWidth: 0.5))
-                        }
-                        .buttonStyle(.plain)
-                        .help("T\u{00F8}m alle (unntatt festede)")
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Design.accent)
+                        .clipShape(Capsule())
                     }
-
-                    // Action row: kopier-knapp (st\u{00F8}rrelse-slider ligger i sub-tab-raden)
-                    if !viewModel.selectedPathIds.isEmpty {
-                        HStack(spacing: 6) {
-                            Spacer()
-                            Button(action: {
-                                viewModel.copySelectedPathEntries()
-                            }) {
-                                HStack(spacing: 3) {
-                                    Image(systemName: "doc.on.doc")
-                                        .font(.system(size: 10))
-                                    Text("Kopier paths")
-                                        .font(Design.captionFont)
-                                }
-                            }
-                            .buttonStyle(Design.PillButtonStyle(isAccent: true, isSolid: true))
-                            .help("Kopier valgte paths (en per linje)")
-                        }
-                    }
+                    .buttonStyle(.plain)
+                    .help("Kopier valgte paths (en per linje)")
                 }
                 .padding(.horizontal, 12)
-                .padding(.top, 8)
-                .padding(.bottom, 4)
+                .padding(.top, 6)
+                .padding(.bottom, 2)
             }
 
             if viewModel.pathEntries.isEmpty {
                 pathEmptyState
             } else {
                 ScrollView {
-                    // Rad-spacing skalerer med size-slider (2px \u{2192} 14px)
-                    let rowSpacing: CGFloat = 2 + CGFloat(viewModel.pathsViewSize) * 12
-                    LazyVStack(spacing: rowSpacing) {
+                    LazyVGrid(columns: adaptivePathColumns, spacing: 6) {
                         let pinned = viewModel.pathEntries.filter { $0.isPinned }
                         let unpinned = viewModel.pathEntries.filter { !$0.isPinned }
 
@@ -139,10 +77,80 @@ struct PathListView: View {
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
+                    .padding(.bottom, 44) // plass for bunnbar
                 }
             }
+
+            // Bunnbar: Velg alle / Fjern valg + T\u{00F8}m
+            if !viewModel.pathEntries.isEmpty {
+                HStack(spacing: 6) {
+                    Spacer()
+
+                    if viewModel.selectedPathIds.count == viewModel.pathEntries.count {
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.1)) {
+                                viewModel.deselectAllPathEntries()
+                            }
+                        }) {
+                            HStack(spacing: 3) {
+                                Image(systemName: "xmark.circle")
+                                    .font(.system(size: 9, weight: .bold))
+                                Text("Fjern valg")
+                                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                            }
+                            .foregroundColor(Design.subtleText)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Design.buttonTint)
+                            .clipShape(Capsule())
+                            .overlay(Capsule().stroke(Design.buttonBorder, lineWidth: 0.5))
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.1)) {
+                                viewModel.selectAllPathEntries()
+                            }
+                        }) {
+                            HStack(spacing: 3) {
+                                Image(systemName: "checkmark.circle")
+                                    .font(.system(size: 9, weight: .bold))
+                                Text("Velg alle")
+                                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                            }
+                            .foregroundColor(Design.subtleText)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Design.buttonTint)
+                            .clipShape(Capsule())
+                            .overlay(Capsule().stroke(Design.buttonBorder, lineWidth: 0.5))
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Button(action: {
+                        withAnimation { viewModel.clearPathEntries() }
+                    }) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "trash")
+                                .font(.system(size: 9, weight: .bold))
+                            Text("T\u{00F8}m")
+                                .font(.system(size: 10, weight: .medium, design: .rounded))
+                        }
+                        .foregroundColor(Design.subtleText)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Design.buttonTint)
+                        .clipShape(Capsule())
+                        .overlay(Capsule().stroke(Design.buttonBorder, lineWidth: 0.5))
+                    }
+                    .buttonStyle(.plain)
+                    .help("T\u{00F8}m alle (unntatt festede)")
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var pathEmptyState: some View {

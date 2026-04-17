@@ -14,7 +14,7 @@ struct ClipboardListView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Clipboard header (full mode: select/clear row + action row)
-            if !viewModel.clipboardEntries.isEmpty && !viewModel.isLightVersion {
+            if !viewModel.isLightVersion {
                 let hasSelection = !viewModel.selectedClipboardIds.isEmpty
                 VStack(spacing: 4) {
                     HStack {
