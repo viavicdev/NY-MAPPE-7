@@ -277,10 +277,12 @@ struct ClipboardListView: View {
                 csvBuilderBanner
             }
 
-            if viewModel.clipboardEntries.isEmpty {
+            if viewModel.clipboardEntries.isEmpty && viewModel.clipboardGroups.isEmpty {
                 clipboardEmptyState
             } else {
-                clipboardSearchBar
+                if !viewModel.clipboardEntries.isEmpty {
+                    clipboardSearchBar
+                }
                 clipboardGroupedScroll
             }
 
@@ -702,7 +704,8 @@ struct ClipboardListView: View {
             }
 
             // Kopier-gruppe-knapp (vises for alle ikke-pinned seksjoner som har items)
-            if !section.isPinnedSection, renamingGroupId != section.group?.id {
+            let isRenamingThisGroup = section.group.map { $0.id == renamingGroupId } ?? false
+            if !section.isPinnedSection, !isRenamingThisGroup {
                 Button(action: {
                     viewModel.copyClipboardGroup(id: section.group?.id)
                 }) {
