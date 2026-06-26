@@ -703,6 +703,22 @@ struct ClipboardListView: View {
                 }
             }
 
+            // Dra-alle-bilder-knapp: seksjoner med bilder kan dras rett inn i canvas/ChatGPT.
+            // Har du markert noen bilder, dras de markerte; ellers alle i seksjonen.
+            let imageEntries = section.entries.filter { $0.isImage }
+            if !imageEntries.isEmpty {
+                let selectedImages = imageEntries.filter { viewModel.selectedClipboardIds.contains($0.id) }
+                let dragEntries = selectedImages.isEmpty ? imageEntries : selectedImages
+                let urls = dragEntries.compactMap { viewModel.clipboardImageURL(for: $0) }
+                if !urls.isEmpty {
+                    MultiFileDragButton(
+                        urls: urls,
+                        label: "Dra \(urls.count)",
+                        icon: "photo.on.rectangle.angled"
+                    )
+                }
+            }
+
             // Kopier-gruppe-knapp (vises for alle ikke-pinned seksjoner som har items)
             let isRenamingThisGroup = section.group.map { $0.id == renamingGroupId } ?? false
             if !section.isPinnedSection, !isRenamingThisGroup {
@@ -905,9 +921,35 @@ struct ClipboardCard: View {
     @State private var isHovered = false
     @State private var isExpanded = false
     @State private var showCopied = false
+    @State private var thumbnail: NSImage?
 
     private var charCount: Int {
         entry.text.trimmingCharacters(in: .whitespacesAndNewlines).count
+    }
+
+    @ViewBuilder
+    private var imageThumbnail: some View {
+        Group {
+            if let thumbnail = thumbnail {
+                Image(nsImage: thumbnail)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity)
+                    .frame(maxHeight: 140)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            } else {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Design.buttonTint)
+                    .frame(height: 70)
+                    .overlay(
+                        Image(systemName: "photo")
+                            .foregroundColor(Design.subtleText.opacity(0.5))
+                    )
+            }
+        }
+        .onAppear {
+            if thumbnail == nil { thumbnail = viewModel.loadClipboardImage(entry) }
+        }
     }
 
     private var isLongText: Bool {
@@ -918,18 +960,22 @@ struct ClipboardCard: View {
         ZStack(alignment: .bottom) {
             // Fast innhold \u{2014} h\u{00F8}yden endres IKKE ved hover
             VStack(alignment: .leading, spacing: 4) {
-                Text(entry.preview)
-                    .font(.system(size: 10.5, design: .monospaced))
-                    .foregroundColor(Design.primaryText)
-                    .lineLimit(isExpanded ? nil : 2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                if entry.isImage {
+                    imageThumbnail
+                } else {
+                    Text(entry.preview)
+                        .font(.system(size: 10.5, design: .monospaced))
+                        .foregroundColor(Design.primaryText)
+                        .lineLimit(isExpanded ? nil : 2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
                 HStack(spacing: 4) {
                     Text(entry.formattedDate)
                         .font(.system(size: 8, weight: .medium, design: .rounded))
                         .foregroundColor(Design.subtleText.opacity(0.5))
 
-                    Text("\(charCount) tegn")
+                    Text(entry.isImage ? "Bilde" : "\(charCount) tegn")
                         .font(.system(size: 8, design: .rounded))
                         .foregroundColor(Design.subtleText.opacity(0.3))
 
@@ -1034,7 +1080,11 @@ struct ClipboardCard: View {
             }
         }
         .onDrag {
-            NSItemProvider(object: entry.text as NSString)
+            if entry.isImage, let url = viewModel.clipboardImageURL(for: entry),
+               let provider = NSItemProvider(contentsOf: url) {
+                return provider
+            }
+            return NSItemProvider(object: entry.text as NSString)
         }
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
@@ -1086,6 +1136,7 @@ struct ClipboardListRow: View {
     @ObservedObject var viewModel: StashViewModel
 
     @State private var isHovered = false
+    @State private var thumbnail: NSImage?
 
     var body: some View {
         HStack(spacing: 6) {
@@ -1098,11 +1149,36 @@ struct ClipboardListRow: View {
                 Spacer().frame(width: 10)
             }
 
-            Text(entry.preview)
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundColor(Design.primaryText)
-                .lineLimit(1)
-                .truncationMode(.tail)
+            if entry.isImage {
+                Group {
+                    if let thumbnail = thumbnail {
+                        Image(nsImage: thumbnail)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 22, height: 22)
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                    } else {
+                        Image(systemName: "photo")
+                            .font(.system(size: 11))
+                            .foregroundColor(Design.subtleText.opacity(0.5))
+                            .frame(width: 22, height: 22)
+                    }
+                }
+                .onAppear {
+                    if thumbnail == nil { thumbnail = viewModel.loadClipboardImage(entry) }
+                }
+
+                Text("Bilde")
+                    .font(.system(size: 10, design: .rounded))
+                    .foregroundColor(Design.primaryText)
+                    .lineLimit(1)
+            } else {
+                Text(entry.preview)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundColor(Design.primaryText)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
 
             Spacer(minLength: 6)
 
@@ -1146,7 +1222,14 @@ struct ClipboardListRow: View {
         .onHover { hovering in
             isHovered = hovering
         }
-        .onDrag { NSItemProvider(object: entry.text as NSString) }
-        .help(entry.text.prefix(300) + (entry.text.count > 300 ? "\u{2026}" : ""))
+        .onDrag {
+            if entry.isImage, let url = viewModel.clipboardImageURL(for: entry),
+               let provider = NSItemProvider(contentsOf: url) {
+                return provider
+            }
+            return NSItemProvider(object: entry.text as NSString)
+        }
+        .help(entry.isImage ? "Bilde \u{2014} dra inn der du vil ha det"
+              : entry.text.prefix(300) + (entry.text.count > 300 ? "\u{2026}" : ""))
     }
 }

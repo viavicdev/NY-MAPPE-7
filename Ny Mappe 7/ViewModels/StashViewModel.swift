@@ -44,6 +44,16 @@ final class StashViewModel: ObservableObject {
     @Published var clipboardNewestOnTop: Bool = true
     @Published var clipboardCopyBlankLines: Int = 1
     @Published var clipboardIncludeGroupHeader: Bool = true
+    // Når på: kopierte lenker rutes automatisk til dedikerte grupper
+    // (YouTube / GitHub / Hugging Face / Linker), uavhengig av aktiv mål-gruppe.
+    @Published var autoGroupLinks: Bool = true
+    // Når på: kopierte bilder fanges automatisk og samles i "Bilder"-gruppa.
+    @Published var captureImages: Bool = true
+    // Hurtigtast for "legg til markert Finder-fil i Filer-fanen" (valgbar i Settings).
+    // Endringer re-registrerer Carbon-hurtigtasten umiddelbart.
+    @Published var finderImportHotkey: FinderImportHotkey = .optShiftF {
+        didSet { FinderImportHotKeyManager.shared.update(to: finderImportHotkey) }
+    }
 
     // Quick Notes
     @Published var quickNotes: [QuickNote] = []
@@ -279,6 +289,9 @@ final class StashViewModel: ObservableObject {
             self.clipboardNewestOnTop = state.clipboardNewestOnTop
             self.clipboardCopyBlankLines = state.clipboardCopyBlankLines
             self.clipboardIncludeGroupHeader = state.clipboardIncludeGroupHeader
+            self.autoGroupLinks = state.autoGroupLinks
+            self.captureImages = state.captureImages
+            self.finderImportHotkey = FinderImportHotkey(rawValue: state.finderImportHotkey) ?? .optShiftF
             self.quickNotes = state.quickNotes
             self.lastOpenedQuickNoteId = state.lastOpenedQuickNoteId
             self.contextBundles = state.contextBundles
@@ -356,6 +369,9 @@ final class StashViewModel: ObservableObject {
                 clipboardNewestOnTop: self.clipboardNewestOnTop,
                 clipboardCopyBlankLines: self.clipboardCopyBlankLines,
                 clipboardIncludeGroupHeader: self.clipboardIncludeGroupHeader,
+                autoGroupLinks: self.autoGroupLinks,
+                captureImages: self.captureImages,
+                finderImportHotkey: self.finderImportHotkey.rawValue,
                 quickNotes: self.quickNotes,
                 lastOpenedQuickNoteId: self.lastOpenedQuickNoteId,
                 contextBundles: self.contextBundles,
@@ -420,6 +436,24 @@ final class StashViewModel: ObservableObject {
     }
 
     // MARK: - Import
+
+    /// Henter filene som er markert i Finder akkurat nå og legger dem i Filer-fanen.
+    /// Kalles av hurtigtasten og av h\u{00F8}yreklikk-tjenesten (via importURLs).
+    func importFinderSelection() {
+        let result = FinderBridge.selectedURLs()
+        if let error = result.errorMessage {
+            showToast(error, duration: 4.0)
+            return
+        }
+        guard !result.urls.isEmpty else {
+            showToast("Ingen fil markert i Finder")
+            return
+        }
+        activeTab = .files
+        activeFilesTab = .files
+        importURLs(result.urls)
+        showToast("\(result.urls.count) lagt til i Filer")
+    }
 
     func importURLs(_ urls: [URL]) {
         guard let setId = activeSetId else { return }
@@ -531,6 +565,7 @@ final class StashViewModel: ObservableObject {
     }
 
     func removeSelectedClipboardEntries() {
+        clipboardEntries.filter { selectedClipboardIds.contains($0.id) }.forEach(deleteImageFile)
         clipboardEntries.removeAll { selectedClipboardIds.contains($0.id) }
         selectedClipboardIds.removeAll()
         scheduleSave()
@@ -654,11 +689,18 @@ final class StashViewModel: ObservableObject {
 
     private func startClipboardWatch() {
         clipboardWatchEnabled = true
-        clipboardWatcher.startWatching { [weak self] text in
-            Task { @MainActor in
-                self?.addClipboardEntry(text)
+        clipboardWatcher.startWatching(
+            onText: { [weak self] text in
+                Task { @MainActor in
+                    self?.addClipboardEntry(text)
+                }
+            },
+            onImage: { [weak self] data in
+                Task { @MainActor in
+                    self?.addClipboardImage(data)
+                }
             }
-        }
+        )
     }
 
     func toggleClipboardWatch() {
@@ -674,7 +716,13 @@ final class StashViewModel: ObservableObject {
         // Don't add duplicates of the most recent entry
         if let last = clipboardEntries.first, last.text == text { return }
 
-        let entry = ClipboardEntry(text: text, groupId: activeClipboardGroupId)
+        // Lenker rutes til sin dedikerte gruppe og overstyrer aktiv mål-gruppe.
+        var targetGroupId = activeClipboardGroupId
+        if autoGroupLinks, let linkGroup = LinkClassifier.group(for: text) {
+            targetGroupId = ensureClipboardGroup(named: linkGroup.rawValue)
+        }
+
+        let entry = ClipboardEntry(text: text, groupId: targetGroupId)
         clipboardEntries.insert(entry, at: 0)
 
         enforceClipboardLimit()
@@ -686,6 +734,48 @@ final class StashViewModel: ObservableObject {
         scheduleSave()
     }
 
+    /// Lagrer et bilde fanget fra utklippstavla til disk og legger det inn som
+    /// et bilde-utklipp i "Bilder"-gruppa.
+    private func addClipboardImage(_ pngData: Data) {
+        guard captureImages else { return }
+
+        let filename = "\(UUID().uuidString).png"
+        let url = PersistenceService.shared.clipboardImagesURL.appendingPathComponent(filename)
+        do {
+            try pngData.write(to: url, options: .atomic)
+        } catch {
+            errorMessage = "Kunne ikke lagre bilde fra utklippstavla: \(error.localizedDescription)"
+            showError = true
+            return
+        }
+
+        // Bilder samles i sin egen "Bilder"-gruppe (overstyrer aktiv mål-gruppe).
+        let groupId = ensureClipboardGroup(named: "Bilder")
+        let entry = ClipboardEntry(imageFileName: filename, groupId: groupId)
+        clipboardEntries.insert(entry, at: 0)
+
+        enforceClipboardLimit()
+        scheduleSave()
+    }
+
+    /// Full sti til det lagrede bildet for et bilde-utklipp.
+    func clipboardImageURL(for entry: ClipboardEntry) -> URL? {
+        guard let name = entry.imageFileName else { return nil }
+        return PersistenceService.shared.clipboardImagesURL.appendingPathComponent(name)
+    }
+
+    /// Laster NSImage for et bilde-utklipp (for thumbnail og kopiering).
+    func loadClipboardImage(_ entry: ClipboardEntry) -> NSImage? {
+        guard let url = clipboardImageURL(for: entry) else { return nil }
+        return NSImage(contentsOf: url)
+    }
+
+    /// Sletter bildefila på disk for et bilde-utklipp (kalles når utklippet fjernes).
+    private func deleteImageFile(for entry: ClipboardEntry) {
+        guard entry.kind == .image, let url = clipboardImageURL(for: entry) else { return }
+        try? FileManager.default.removeItem(at: url)
+    }
+
     /// Beskjærer clipboard-lista til maxClipboardEntries. Festede items teller ikke
     /// mot grensen slik at brukeren ikke mister pinned entries når limit senkes.
     private func enforceClipboardLimit() {
@@ -695,14 +785,17 @@ final class StashViewModel: ObservableObject {
         guard unpinned.count > limit else { return }
         let trimmed = Array(unpinned.prefix(limit))
         // Behold original rekkefølge: pinned + unpinned slik de lå (nyeste først i lagret array).
+        let keptIds = Set(trimmed.map { $0.id })
+        clipboardEntries.filter { !$0.isPinned && !keptIds.contains($0.id) }.forEach(deleteImageFile)
         clipboardEntries = clipboardEntries.filter { entry in
-            entry.isPinned || trimmed.contains(where: { $0.id == entry.id })
+            entry.isPinned || keptIds.contains(entry.id)
         }
         _ = pinned
         scheduleSave()
     }
 
     func deleteClipboardEntry(_ entry: ClipboardEntry) {
+        deleteImageFile(for: entry)
         clipboardEntries.removeAll { $0.id == entry.id }
         scheduleSave()
     }
@@ -715,6 +808,7 @@ final class StashViewModel: ObservableObject {
     }
 
     func clearClipboardEntries() {
+        clipboardEntries.filter { !$0.isPinned }.forEach(deleteImageFile)
         clipboardEntries.removeAll { !$0.isPinned }
         scheduleSave()
     }
@@ -734,6 +828,7 @@ final class StashViewModel: ObservableObject {
             }
         })
         guard !idsToRemove.isEmpty else { return }
+        clipboardEntries.filter { idsToRemove.contains($0.id) }.forEach(deleteImageFile)
         clipboardEntries.removeAll { idsToRemove.contains($0.id) }
         selectedClipboardIds.subtract(idsToRemove)
         scheduleSave()
@@ -763,12 +858,29 @@ final class StashViewModel: ObservableObject {
     }
 
     func copyClipboardEntry(_ entry: ClipboardEntry) {
-        copyTextToPasteboard(entry.text)
+        if entry.kind == .image, let image = loadClipboardImage(entry) {
+            copyImageToPasteboard(image)
+        } else {
+            copyTextToPasteboard(entry.text)
+        }
     }
 
     func copySelectedClipboardEntries() {
         let selected = clipboardEntries.filter { selectedClipboardIds.contains($0.id) }
         guard !selected.isEmpty else { return }
+
+        // Bilder kan ikke samles i én tekst-utklippstavla. ⌘C på ett bilde kopierer
+        // bildet; for flere bilder er dra-ut riktig mekanisme.
+        let textEntries = selected.filter { $0.kind == .text }
+        if textEntries.isEmpty {
+            if selected.count == 1, let image = loadClipboardImage(selected[0]) {
+                copyImageToPasteboard(image)
+                selectedClipboardIds.removeAll()
+            } else {
+                showToast("Dra bildene dit du vil ha dem")
+            }
+            return
+        }
 
         // Separator: "blank lines" = antall tomme linjer mellom entries.
         // 0 tomme linjer = "\n", 1 = "\n\n", 2 = "\n\n\n", osv.
@@ -780,7 +892,7 @@ final class StashViewModel: ObservableObject {
         let groupOrder: [UUID?] = {
             var seen = Set<UUID?>()
             var order: [UUID?] = []
-            for entry in selected {
+            for entry in textEntries {
                 if !seen.contains(entry.groupId) {
                     seen.insert(entry.groupId)
                     order.append(entry.groupId)
@@ -791,7 +903,7 @@ final class StashViewModel: ObservableObject {
 
         var blocks: [String] = []
         for gid in groupOrder {
-            let itemsInGroup = selected.filter { $0.groupId == gid }
+            let itemsInGroup = textEntries.filter { $0.groupId == gid }
             let texts = itemsInGroup.map { $0.text }
             let body = texts.joined(separator: separator)
 
@@ -815,15 +927,18 @@ final class StashViewModel: ObservableObject {
         let knownGroupIds = Set(clipboardGroups.map { $0.id })
         let entries: [ClipboardEntry]
         if let gid = id {
-            entries = clipboardEntries.filter { !$0.isPinned && $0.groupId == gid }
+            entries = clipboardEntries.filter { !$0.isPinned && $0.kind == .text && $0.groupId == gid }
         } else {
             entries = clipboardEntries.filter { entry in
-                guard !entry.isPinned else { return false }
+                guard !entry.isPinned, entry.kind == .text else { return false }
                 guard let g = entry.groupId else { return true }
                 return !knownGroupIds.contains(g)
             }
         }
-        guard !entries.isEmpty else { return }
+        guard !entries.isEmpty else {
+            showToast("Dra bildene dit du vil ha dem")
+            return
+        }
 
         // Respekter samme separator og header-setting som enkelt-kopier
         let blanks = max(0, clipboardCopyBlankLines)
@@ -926,6 +1041,16 @@ final class StashViewModel: ObservableObject {
         expandedClipboardGroupIds.insert(group.id)
         scheduleSave()
         return group
+    }
+
+    /// Finner en eksisterende gruppe på navn (case-insensitivt) eller oppretter den.
+    /// Brukes av lenke-auto-grupperingen for å rute kopierte lenker.
+    @discardableResult
+    func ensureClipboardGroup(named name: String) -> UUID {
+        if let existing = clipboardGroups.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+            return existing.id
+        }
+        return createClipboardGroup(name: name).id
     }
 
     func renameClipboardGroup(id: UUID, name: String) {
@@ -1792,6 +1917,30 @@ final class StashViewModel: ObservableObject {
         }
 
         // Auto-close panel after copy so the user can paste right away
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            NSApplication.shared.windows
+                .first(where: { $0.title == "Ny Mappe (7)" })?
+                .orderOut(nil)
+        }
+    }
+
+    /// Legger et bilde på utklippstavla (klar til ⌘V i Slack/mail/canvas).
+    /// Pauser watcheren kort så vi ikke re-fanger vårt eget bilde.
+    private func copyImageToPasteboard(_ image: NSImage) {
+        let wasWatching = clipboardWatchEnabled
+        if wasWatching { clipboardWatcher.stopWatching() }
+
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.writeObjects([image])
+
+        showToast("Bilde kopiert!")
+
+        if wasWatching {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.startClipboardWatch()
+            }
+        }
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             NSApplication.shared.windows
                 .first(where: { $0.title == "Ny Mappe (7)" })?

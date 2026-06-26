@@ -31,6 +31,13 @@ final class PersistenceService {
         return url
     }
 
+    /// Lagring for bilder fanget fra utklippstavla (Utklipp-fanen).
+    var clipboardImagesURL: URL {
+        let url = appSupportURL.appendingPathComponent("ClipboardImages", isDirectory: true)
+        try? fileManager.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
     var exportURL: URL {
         let url = appSupportURL.appendingPathComponent("Exports", isDirectory: true)
         try? fileManager.createDirectory(at: url, withIntermediateDirectories: true)

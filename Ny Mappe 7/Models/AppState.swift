@@ -18,6 +18,9 @@ struct AppState: Codable {
     var clipboardNewestOnTop: Bool
     var clipboardCopyBlankLines: Int
     var clipboardIncludeGroupHeader: Bool
+    var autoGroupLinks: Bool
+    var captureImages: Bool
+    var finderImportHotkey: String
     var quickNotes: [QuickNote]
     var lastOpenedQuickNoteId: UUID?
     var contextBundles: [ContextBundle]
@@ -55,6 +58,9 @@ struct AppState: Codable {
         clipboardNewestOnTop: Bool = true,
         clipboardCopyBlankLines: Int = 1,
         clipboardIncludeGroupHeader: Bool = true,
+        autoGroupLinks: Bool = true,
+        captureImages: Bool = true,
+        finderImportHotkey: String = "optShiftF",
         quickNotes: [QuickNote] = [],
         lastOpenedQuickNoteId: UUID? = nil,
         contextBundles: [ContextBundle] = [],
@@ -90,6 +96,9 @@ struct AppState: Codable {
         self.clipboardNewestOnTop = clipboardNewestOnTop
         self.clipboardCopyBlankLines = clipboardCopyBlankLines
         self.clipboardIncludeGroupHeader = clipboardIncludeGroupHeader
+        self.autoGroupLinks = autoGroupLinks
+        self.captureImages = captureImages
+        self.finderImportHotkey = finderImportHotkey
         self.quickNotes = quickNotes
         self.lastOpenedQuickNoteId = lastOpenedQuickNoteId
         self.contextBundles = contextBundles
@@ -116,6 +125,7 @@ struct AppState: Codable {
         case autoCleanupFilesDays, autoCleanupClipboardDays, autoCleanupPathsDays
         case clipboardGroups, activeClipboardGroupId, clipboardNewestOnTop
         case clipboardCopyBlankLines, clipboardIncludeGroupHeader
+        case autoGroupLinks, captureImages, finderImportHotkey
         case quickNotes, lastOpenedQuickNoteId
         case contextBundles, activeContextBundleId
         case promptCategories, activePromptCategoryId
@@ -146,6 +156,9 @@ struct AppState: Codable {
         clipboardNewestOnTop = try container.decodeIfPresent(Bool.self, forKey: .clipboardNewestOnTop) ?? true
         clipboardCopyBlankLines = try container.decodeIfPresent(Int.self, forKey: .clipboardCopyBlankLines) ?? 1
         clipboardIncludeGroupHeader = try container.decodeIfPresent(Bool.self, forKey: .clipboardIncludeGroupHeader) ?? true
+        autoGroupLinks = try container.decodeIfPresent(Bool.self, forKey: .autoGroupLinks) ?? true
+        captureImages = try container.decodeIfPresent(Bool.self, forKey: .captureImages) ?? true
+        finderImportHotkey = try container.decodeIfPresent(String.self, forKey: .finderImportHotkey) ?? "optShiftF"
         quickNotes = try container.decodeIfPresent([QuickNote].self, forKey: .quickNotes) ?? []
         lastOpenedQuickNoteId = try container.decodeIfPresent(UUID.self, forKey: .lastOpenedQuickNoteId)
         contextBundles = (try? container.decodeIfPresent([ContextBundle].self, forKey: .contextBundles)) ?? []

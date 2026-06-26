@@ -43,6 +43,9 @@ SRC_DIR="$SCRIPT_DIR/Ny Mappe 7"
 BUILD_DIR="$SCRIPT_DIR/.build"
 APP_DIR="$SCRIPT_DIR/$APP_NAME.app"
 
+# Git-info embedes i Info.plist for auto-oppdaterings-sjekk (NM7RepoPath/NM7GitCommit)
+GIT_COMMIT="$(git -C "$SCRIPT_DIR" rev-parse HEAD 2>/dev/null || echo "")"
+
 # All source files
 SOURCES=(
     "$SRC_DIR/NyMappe7App.swift"
@@ -51,6 +54,8 @@ SOURCES=(
     "$SRC_DIR/Models/StashSet.swift"
     "$SRC_DIR/Models/ClipboardEntry.swift"
     "$SRC_DIR/Models/ClipboardGroup.swift"
+    "$SRC_DIR/Models/LinkClassifier.swift"
+    "$SRC_DIR/Models/FinderImportHotkey.swift"
     "$SRC_DIR/Models/QuickNote.swift"
     "$SRC_DIR/Models/CSVColumnBuilderState.swift"
     "$SRC_DIR/Models/ViewPreferences.swift"
@@ -66,6 +71,9 @@ SOURCES=(
     "$SRC_DIR/Services/PersistenceService.swift"
     "$SRC_DIR/Services/ScreenshotWatcher.swift"
     "$SRC_DIR/Services/ClipboardWatcher.swift"
+    "$SRC_DIR/Services/FinderBridge.swift"
+    "$SRC_DIR/Services/FinderImportHotKeyManager.swift"
+    "$SRC_DIR/Services/UpdateService.swift"
     "$SRC_DIR/Views/ContentView.swift"
     "$SRC_DIR/Views/QuickNoteView.swift"
     "$SRC_DIR/Views/CardsGridView.swift"
@@ -100,7 +108,7 @@ SOURCES=(
     "$SRC_DIR/Views/Components/FinderShortcutsView.swift"
 )
 
-FRAMEWORKS="-framework SwiftUI -framework AppKit -framework QuickLookThumbnailing -framework UniformTypeIdentifiers"
+FRAMEWORKS="-framework SwiftUI -framework AppKit -framework QuickLookThumbnailing -framework UniformTypeIdentifiers -framework Carbon"
 COMMON_FLAGS="-parse-as-library $FRAMEWORKS"
 
 echo "🔨 Building Ny Mappe (7)..."
@@ -186,6 +194,31 @@ cat > "$APP_DIR/Contents/Info.plist" << PLIST
     <true/>
     <key>LSUIElement</key>
     <true/>
+    <key>NM7RepoPath</key>
+    <string>${SCRIPT_DIR}</string>
+    <key>NM7GitCommit</key>
+    <string>${GIT_COMMIT}</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Ny Mappe (7) henter filene du har markert i Finder når du bruker hurtigtasten for å legge dem til.</string>
+    <key>NSServices</key>
+    <array>
+        <dict>
+            <key>NSMenuItem</key>
+            <dict>
+                <key>default</key>
+                <string>Legg til i Ny Mappe (7)</string>
+            </dict>
+            <key>NSMessage</key>
+            <string>addFilesToStash</string>
+            <key>NSPortName</key>
+            <string>Ny Mappe (7)</string>
+            <key>NSSendTypes</key>
+            <array>
+                <string>public.file-url</string>
+                <string>NSFilenamesPboardType</string>
+            </array>
+        </dict>
+    </array>
 </dict>
 </plist>
 PLIST

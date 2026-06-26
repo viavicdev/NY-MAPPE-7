@@ -13,6 +13,7 @@ struct SettingsSheet: View {
     @State private var cleanupSectionExpanded = false
     @State private var standardBundlesExpanded = false
     @State private var standardPromptsExpanded = false
+    @State private var finderImportExpanded = false
 
     private struct StandardBundle {
         let name: String
@@ -38,6 +39,7 @@ struct SettingsSheet: View {
                     standardPromptsSection
                     screenshotSection
                     cleanupSection
+                    finderImportSection
                     finderShortcutsSection
                     shortcutsSection
                 }
@@ -221,6 +223,30 @@ struct SettingsSheet: View {
                         }
                     )
                 )
+
+                settingsToggle(
+                    title: "Grupper lenker automatisk",
+                    subtitle: "Kopierte lenker havner i egne grupper: YouTube, GitHub, Hugging Face \u{2014} resten i \u{00AB}Linker\u{00BB}",
+                    isOn: Binding(
+                        get: { viewModel.autoGroupLinks },
+                        set: { newVal in
+                            viewModel.autoGroupLinks = newVal
+                            viewModel.scheduleSave()
+                        }
+                    )
+                )
+
+                settingsToggle(
+                    title: "Fang kopierte bilder",
+                    subtitle: "Bilder du kopierer (f.eks. fra Google) samles i \u{00AB}Bilder\u{00BB}-gruppa \u{2014} marker og dra dem inn i canvas/ChatGPT",
+                    isOn: Binding(
+                        get: { viewModel.captureImages },
+                        set: { newVal in
+                            viewModel.captureImages = newVal
+                            viewModel.scheduleSave()
+                        }
+                    )
+                )
             }
         }
     }
@@ -231,6 +257,50 @@ struct SettingsSheet: View {
         case 1: return "\u{00C9}n blank linje mellom hvert utklipp (standard)"
         case 2: return "To blanke linjer mellom hvert utklipp"
         default: return "\(viewModel.clipboardCopyBlankLines) blanke linjer mellom hvert utklipp"
+        }
+    }
+
+    // MARK: - Legg til fra Finder
+
+    private var finderImportSection: some View {
+        collapsibleSettingsGroup(
+            title: "Legg til fra Finder",
+            icon: "folder.badge.plus",
+            isExpanded: $finderImportExpanded
+        ) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Hurtigtast")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundColor(Design.primaryText)
+
+                Text("Marker fil(er) i Finder og trykk hurtigtasten \u{2014} de havner i Filer-fanen.")
+                    .font(.system(size: 9, design: .rounded))
+                    .foregroundColor(Design.subtleText.opacity(0.7))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: 4) {
+                    ForEach(FinderImportHotkey.allCases, id: \.self) { combo in
+                        Button(action: {
+                            viewModel.finderImportHotkey = combo
+                            viewModel.scheduleSave()
+                        }) {
+                            Text(combo.label)
+                                .font(.system(size: 10, weight: viewModel.finderImportHotkey == combo ? .bold : .medium, design: .rounded))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 5)
+                                .background(viewModel.finderImportHotkey == combo ? Design.accent.opacity(0.15) : Design.buttonTint)
+                                .foregroundColor(viewModel.finderImportHotkey == combo ? Design.accent : Design.subtleText)
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                Text("H\u{00F8}yreklikk i Finder: velg \u{00AB}Legg til i Ny Mappe (7)\u{00BB} under Tjenester. F\u{00F8}rste gang m\u{00E5} du tillate at appen f\u{00E5}r styre Finder.")
+                    .font(.system(size: 9, design: .rounded))
+                    .foregroundColor(Design.subtleText.opacity(0.6))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
