@@ -5,8 +5,9 @@ struct ToolsTabView: View {
 
     private var activeSubCount: Int {
         switch viewModel.activeToolsTab {
+        case .bundles: return viewModel.contextBundles.count
+        case .prompts: return viewModel.promptCategories.count
         case .paths: return viewModel.pathCount
-        case .sheets: return viewModel.sheetsRowCount
         case .shortcuts: return viewModel.finderShortcuts.count
         }
     }
@@ -14,8 +15,9 @@ struct ToolsTabView: View {
     private var activeSubLabel: String {
         let c = activeSubCount
         switch viewModel.activeToolsTab {
+        case .bundles: return "\(c) bundle\(c == 1 ? "" : "r")"
+        case .prompts: return "\(c) kategori\(c == 1 ? "" : "er")"
         case .paths: return "\(c) filsti"
-        case .sheets: return "\(c) rader"
         case .shortcuts: return "\(c) snarvei\(c == 1 ? "" : "er")"
         }
     }
@@ -33,18 +35,25 @@ struct ToolsTabView: View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 subTabButton(
+                    title: "Bundles",
+                    icon: "shippingbox",
+                    customIcon: nil,
+                    count: viewModel.contextBundles.count,
+                    tab: .bundles
+                )
+                subTabButton(
+                    title: "Prompts",
+                    icon: "text.bubble",
+                    customIcon: "prompt-bank",
+                    count: viewModel.promptCategories.count,
+                    tab: .prompts
+                )
+                subTabButton(
                     title: "Filsti",
                     icon: "folder",
                     customIcon: "filsti",
                     count: viewModel.pathCount,
                     tab: .paths
-                )
-                subTabButton(
-                    title: "Tabell",
-                    icon: "tablecells",
-                    customIcon: "tabell",
-                    count: viewModel.sheetsRowCount,
-                    tab: .sheets
                 )
                 subTabButton(
                     title: "Snarveier",
@@ -64,7 +73,7 @@ struct ToolsTabView: View {
                         onChange: { viewModel.scheduleSave() }
                     )
                     .padding(.trailing, 4)
-                case .sheets, .shortcuts:
+                case .bundles, .prompts, .shortcuts:
                     EmptyView()
                 }
             }
@@ -133,47 +142,14 @@ struct ToolsTabView: View {
     @ViewBuilder
     private var toolsContent: some View {
         switch viewModel.activeToolsTab {
+        case .bundles:
+            ContextBundlesView(viewModel: viewModel)
+        case .prompts:
+            PromptsView(viewModel: viewModel)
         case .paths:
             PathListView(viewModel: viewModel)
-        case .sheets:
-            sheetsContent
         case .shortcuts:
             FinderShortcutsView(viewModel: viewModel)
         }
-    }
-
-    // MARK: - Sheets
-
-    private var sheetsContent: some View {
-        VStack(spacing: 0) {
-            SheetsCollectorView(viewModel: viewModel)
-
-            if viewModel.sheetsRowCount == 0 {
-                sheetsEmptyState
-                    .padding(.top, 12)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear {
-            if !viewModel.sheetsCollectorEnabled {
-                viewModel.sheetsCollectorEnabled = true
-            }
-        }
-    }
-
-    private var sheetsEmptyState: some View {
-        VStack(spacing: 6) {
-            Image(systemName: "tablecells")
-                .font(.system(size: 22, weight: .thin))
-                .foregroundColor(Design.accent.opacity(0.4))
-
-            Text("Kopier tekst med \u{2318}C for \u{00E5} fylle kolonner.\nLim rett inn i Google Sheets.")
-                .font(Design.captionFont)
-                .foregroundColor(Design.subtleText)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal)
-        .padding(.top, 4)
     }
 }

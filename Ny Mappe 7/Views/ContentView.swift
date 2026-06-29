@@ -29,8 +29,6 @@ struct ContentView: View {
                     ToolsTabView(viewModel: viewModel)
                 } else if viewModel.activeTab == .clipboard {
                     ClipboardListView(viewModel: viewModel)
-                } else if viewModel.activeTab == .kontekst {
-                    KontekstView(viewModel: viewModel)
                 } else {
                     FilerTabView(viewModel: viewModel)
                 }
@@ -195,9 +193,6 @@ struct ContentView: View {
                 withAnimation(.easeInOut(duration: 0.2)) { viewModel.activeTab = .clipboard }
                 return true
             case "3":
-                withAnimation(.easeInOut(duration: 0.2)) { viewModel.activeTab = .kontekst }
-                return true
-            case "4":
                 withAnimation(.easeInOut(duration: 0.2)) { viewModel.activeTab = .tools }
                 return true
             default:
@@ -234,11 +229,9 @@ struct ContentView: View {
                 switch viewModel.activeToolsTab {
                 case .paths:
                     viewModel.selectAllPathEntries()
-                case .sheets, .shortcuts:
+                case .bundles, .prompts, .shortcuts:
                     break
                 }
-            case .kontekst:
-                break
             }
             return true
         }
@@ -274,11 +267,9 @@ struct ContentView: View {
                         withAnimation { viewModel.removeSelectedPathEntries() }
                         return true
                     }
-                case .sheets, .shortcuts:
+                case .bundles, .prompts, .shortcuts:
                     break
                 }
-            case .kontekst:
-                break
             }
             return false
         }
@@ -315,11 +306,9 @@ struct ContentView: View {
                         viewModel.selectedPathIds.removeAll()
                         hadSelection = true
                     }
-                case .sheets, .shortcuts:
+                case .bundles, .prompts, .shortcuts:
                     break
                 }
-            case .kontekst:
-                break
             }
             if !hadSelection {
                 NSApplication.shared.windows
@@ -431,7 +420,6 @@ struct ContentView: View {
         case .files: return viewModel.fileCount + viewModel.screenshotCount
         case .clipboard: return viewModel.clipboardCount
         case .tools: return viewModel.toolsCount
-        case .kontekst: return viewModel.kontekstCount
         }
     }
 
@@ -440,7 +428,6 @@ struct ContentView: View {
         case .files: return "doc.on.doc"
         case .clipboard: return "doc.on.clipboard"
         case .tools: return "wrench.and.screwdriver"
-        case .kontekst: return "sparkles"
         }
     }
 
@@ -450,7 +437,6 @@ struct ContentView: View {
         case .files: return "\(c) filer"
         case .clipboard: return "\(c) utklipp"
         case .tools: return "\(c) elementer"
-        case .kontekst: return "\(c) element\(c == 1 ? "" : "er")"
         }
     }
 
@@ -615,7 +601,6 @@ struct ContentView: View {
         HStack(spacing: 0) {
             tabButton(title: "Filer", icon: "doc.on.doc", customIcon: "filer", count: viewModel.fileCount + viewModel.screenshotCount, tab: .files)
             tabButton(title: "Utklipp", icon: "doc.on.clipboard", customIcon: "utklipp", count: viewModel.clipboardCount, tab: .clipboard)
-            tabButton(title: "Kontekst", icon: "sparkles", customIcon: "kontekst", count: viewModel.kontekstCount, tab: .kontekst)
             tabButton(title: "Tools", icon: "wrench.and.screwdriver", customIcon: nil, count: viewModel.toolsCount, tab: .tools)
 
             // Notater + Settings p\u{00E5} h\u{00F8}yre side

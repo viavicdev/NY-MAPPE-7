@@ -112,7 +112,6 @@ final class StashViewModel: ObservableObject {
         case files
         case clipboard
         case tools
-        case kontekst
     }
 
     enum FilesSubTab {
@@ -120,9 +119,11 @@ final class StashViewModel: ObservableObject {
         case screenshots
     }
 
+    // Tools rommer nå både Kontekst-innholdet (Bundles/Prompts) og verktøyene.
     enum ToolsSubTab {
+        case bundles
+        case prompts
         case paths
-        case sheets
         case shortcuts
     }
 
@@ -138,7 +139,7 @@ final class StashViewModel: ObservableObject {
     }
 
     @Published var activeFilesTab: FilesSubTab = .files
-    @Published var activeToolsTab: ToolsSubTab = .paths
+    @Published var activeToolsTab: ToolsSubTab = .bundles
     @Published var activeKontekstTab: KontekstSubTab = .bundles
     @Published var activeClipboardTab: ClipboardSubTab = .utklipp
 
@@ -185,11 +186,9 @@ final class StashViewModel: ObservableObject {
             return []
         case .tools:
             switch activeToolsTab {
-            case .paths, .sheets, .shortcuts:
+            case .bundles, .prompts, .paths, .shortcuts:
                 return []
             }
-        case .kontekst:
-            return []
         }
 
         // Apply filter (only in full mode)
@@ -235,7 +234,7 @@ final class StashViewModel: ObservableObject {
     }
 
     var toolsCount: Int {
-        pathCount + sheetsRowCount + finderShortcuts.count
+        contextBundles.count + promptCategories.count + pathCount + finderShortcuts.count
     }
 
     var kontekstCount: Int {
