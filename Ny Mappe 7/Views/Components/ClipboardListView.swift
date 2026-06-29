@@ -277,13 +277,23 @@ struct ClipboardListView: View {
                 csvBuilderBanner
             }
 
-            if viewModel.clipboardEntries.isEmpty && viewModel.clipboardGroups.isEmpty {
-                clipboardEmptyState
-            } else {
-                if !viewModel.clipboardEntries.isEmpty {
-                    clipboardSearchBar
+            clipboardSubTabBar
+
+            if !viewModel.clipboardEntries.isEmpty {
+                clipboardSearchBar
+            }
+
+            switch viewModel.activeClipboardTab {
+            case .utklipp:
+                if viewModel.textClipCount == 0 && viewModel.clipboardGroups.isEmpty {
+                    clipboardEmptyState
+                } else {
+                    clipboardGroupedScroll
                 }
-                clipboardGroupedScroll
+            case .lenker:
+                linkScroll
+            case .bilder:
+                imageScroll
             }
 
             if !viewModel.clipboardEntries.isEmpty {
@@ -438,7 +448,7 @@ struct ClipboardListView: View {
     }
 
     private var groupSections: [GroupSection] {
-        let entries = viewModel.filteredClipboardEntries
+        let entries = viewModel.filteredClipboardEntries.filter { viewModel.tabFor($0) == .utklipp }
         let newestTop = viewModel.clipboardNewestOnTop
 
         func ordered(_ items: [ClipboardEntry]) -> [ClipboardEntry] {
@@ -517,6 +527,191 @@ struct ClipboardListView: View {
         }
     }
 
+    // MARK: - Gjenbrukbar kort-renderer (grid eller liste)
+
+    @ViewBuilder
+    private func entriesView(_ entries: [ClipboardEntry], orderedIds: [UUID]) -> some View {
+        if viewModel.clipboardViewMode == .list {
+            LazyVStack(spacing: 3) {
+                ForEach(entries) { entry in
+                    ClipboardListRow(
+                        entry: entry,
+                        isSelected: viewModel.selectedClipboardIds.contains(entry.id),
+                        orderedIds: orderedIds,
+                        viewModel: viewModel
+                    )
+                }
+            }
+        } else {
+            // size 0.0 = 3 kolonner (smal), 0.5 = 2 kolonner, 1.0 = 1 kolonne (bred)
+            let colCount: Int = viewModel.clipboardViewSize < 0.33 ? 3
+                : viewModel.clipboardViewSize < 0.75 ? 2 : 1
+            let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: colCount)
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 6) {
+                ForEach(entries) { entry in
+                    ClipboardCard(
+                        entry: entry,
+                        isSelected: viewModel.selectedClipboardIds.contains(entry.id),
+                        isCompact: viewModel.isLightVersion,
+                        orderedIds: orderedIds,
+                        viewModel: viewModel
+                    )
+                    .frame(maxHeight: .infinity, alignment: .top)
+                }
+            }
+        }
+    }
+
+    // MARK: - Under-tabs (Utklipp / Lenker / Bilder)
+
+    private var clipboardSubTabBar: some View {
+        HStack(spacing: 0) {
+            clipSubTabButton(title: "Utklipp", icon: "doc.on.clipboard", count: viewModel.textClipCount, tab: .utklipp)
+            clipSubTabButton(title: "Lenker", icon: "link", count: viewModel.linkClipCount, tab: .lenker)
+            clipSubTabButton(title: "Bilder", icon: "photo", count: viewModel.imageClipCount, tab: .bilder)
+        }
+        .padding(.horizontal, 8)
+        .fixedSize(horizontal: false, vertical: true)
+        .background(.ultraThinMaterial)
+        .overlay(
+            Rectangle().frame(height: 0.5).foregroundColor(Design.dividerColor),
+            alignment: .bottom
+        )
+    }
+
+    private func clipSubTabButton(title: String, icon: String, count: Int, tab: StashViewModel.ClipboardSubTab) -> some View {
+        let isActive = viewModel.activeClipboardTab == tab
+        return Button(action: {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                viewModel.activeClipboardTab = tab
+            }
+        }) {
+            VStack(spacing: 0) {
+                HStack(spacing: 4) {
+                    Image(systemName: icon)
+                        .font(.system(size: 10, weight: isActive ? .medium : .regular))
+                        .frame(width: 12, height: 12)
+                    Text(title)
+                        .font(.system(size: 10, weight: isActive ? .semibold : .medium, design: .rounded))
+                        .lineLimit(1)
+                    if count > 0 {
+                        Text("\(count)")
+                            .font(.system(size: 8, weight: .bold, design: .rounded))
+                            .foregroundColor(isActive ? .white : Design.subtleText.opacity(0.7))
+                            .padding(.horizontal, 3)
+                            .frame(minWidth: 14, minHeight: 14)
+                            .background(isActive ? Design.accent.opacity(0.7) : Design.buttonTint)
+                            .clipShape(Capsule())
+                    }
+                }
+                .foregroundColor(isActive ? Design.primaryText : Design.subtleText)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 4)
+
+                Rectangle()
+                    .frame(height: 2)
+                    .foregroundColor(isActive ? Design.accent : Color.clear)
+                    .cornerRadius(1)
+                    .padding(.horizontal, 4)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Lenker-tab (seksjonert per tjeneste)
+
+    private var linkScroll: some View {
+        let newestTop = viewModel.clipboardNewestOnTop
+        let entries = viewModel.filteredClipboardEntries.filter { viewModel.tabFor($0) == .lenker }
+        let ordered = newestTop ? entries : Array(entries.reversed())
+        let orderedIds = ordered.map(\.id)
+        let services: [(LinkClassifier.Group, String)] = [
+            (.youtube, "YouTube"), (.github, "GitHub"), (.huggingface, "Hugging Face"), (.other, "Andre lenker")
+        ]
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+                if ordered.isEmpty {
+                    emptyHint(icon: "link", title: "Ingen lenker enn\u{00E5}", subtitle: "Kopier en lenke, s\u{00E5} havner den her")
+                } else {
+                    ForEach(services, id: \.1) { service, title in
+                        let svcEntries = ordered.filter { LinkClassifier.group(for: $0.text) == service }
+                        if !svcEntries.isEmpty {
+                            sectionHeader(title: title, count: svcEntries.count)
+                            entriesView(svcEntries, orderedIds: orderedIds)
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+        }
+    }
+
+    // MARK: - Bilder-tab (grid + dra alle)
+
+    private var imageScroll: some View {
+        let newestTop = viewModel.clipboardNewestOnTop
+        let entries = viewModel.filteredClipboardEntries.filter { viewModel.tabFor($0) == .bilder }
+        let ordered = newestTop ? entries : Array(entries.reversed())
+        let orderedIds = ordered.map(\.id)
+        let urls = ordered.compactMap { viewModel.clipboardImageURL(for: $0) }
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+                if ordered.isEmpty {
+                    emptyHint(icon: "photo", title: "Ingen bilder enn\u{00E5}", subtitle: "Kopier et bilde, s\u{00E5} havner det her")
+                } else {
+                    if !urls.isEmpty {
+                        HStack {
+                            MultiFileDragButton(urls: urls, label: "Dra alle (\(urls.count))", icon: "photo.on.rectangle.angled")
+                            Spacer()
+                        }
+                    }
+                    entriesView(ordered, orderedIds: orderedIds)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+        }
+    }
+
+    private func sectionHeader(title: String, count: Int) -> some View {
+        HStack(spacing: 6) {
+            Text(title)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundColor(Design.primaryText)
+            Text("\(count)")
+                .font(.system(size: 8, weight: .bold, design: .rounded))
+                .foregroundColor(Design.subtleText.opacity(0.7))
+                .padding(.horizontal, 4)
+                .frame(minHeight: 14)
+                .background(Design.buttonTint)
+                .clipShape(Capsule())
+            Spacer()
+        }
+        .padding(.horizontal, 6)
+        .padding(.top, 4)
+    }
+
+    @ViewBuilder
+    private func emptyHint(icon: String, title: String, subtitle: String) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 22))
+                .foregroundColor(Design.subtleText.opacity(0.4))
+            Text(title)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundColor(Design.subtleText)
+            Text(subtitle)
+                .font(.system(size: 10, design: .rounded))
+                .foregroundColor(Design.subtleText.opacity(0.6))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
+    }
+
     @ViewBuilder
     private func groupSectionView(_ section: GroupSection, orderedIds: [UUID]) -> some View {
         // Aktiv-sjekk: en konkret gruppe er aktiv hvis IDen matcher,
@@ -542,38 +737,8 @@ struct ClipboardListView: View {
                         .foregroundColor(Design.subtleText.opacity(0.5))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                } else if viewModel.clipboardViewMode == .list {
-                    LazyVStack(spacing: 3) {
-                        ForEach(section.entries) { entry in
-                            ClipboardListRow(
-                                entry: entry,
-                                isSelected: viewModel.selectedClipboardIds.contains(entry.id),
-                                orderedIds: orderedIds,
-                                viewModel: viewModel
-                            )
-                        }
-                    }
                 } else {
-                    // Grid med dynamisk antall kolonner styrt av size-slider
-                    // size 0.0 = 3 kolonner (smal), 0.5 = 2 kolonner (standard), 1.0 = 1 kolonne (bred)
-                    let colCount: Int = viewModel.clipboardViewSize < 0.33 ? 3
-                        : viewModel.clipboardViewSize < 0.75 ? 2 : 1
-                    let columns = Array(
-                        repeating: GridItem(.flexible(), spacing: 6),
-                        count: colCount
-                    )
-                    LazyVGrid(columns: columns, alignment: .leading, spacing: 6) {
-                        ForEach(section.entries) { entry in
-                            ClipboardCard(
-                                entry: entry,
-                                isSelected: viewModel.selectedClipboardIds.contains(entry.id),
-                                isCompact: viewModel.isLightVersion,
-                                orderedIds: orderedIds,
-                                viewModel: viewModel
-                            )
-                            .frame(maxHeight: .infinity, alignment: .top)
-                        }
-                    }
+                    entriesView(section.entries, orderedIds: orderedIds)
                 }
             }
         }

@@ -131,9 +131,27 @@ final class StashViewModel: ObservableObject {
         case prompts
     }
 
+    enum ClipboardSubTab {
+        case utklipp
+        case lenker
+        case bilder
+    }
+
     @Published var activeFilesTab: FilesSubTab = .files
     @Published var activeToolsTab: ToolsSubTab = .paths
     @Published var activeKontekstTab: KontekstSubTab = .bundles
+    @Published var activeClipboardTab: ClipboardSubTab = .utklipp
+
+    /// Hvilken under-tab et utklipp h\u{00F8}rer hjemme i (bilde / lenke / vanlig tekst).
+    func tabFor(_ entry: ClipboardEntry) -> ClipboardSubTab {
+        if entry.kind == .image { return .bilder }
+        if autoGroupLinks, LinkClassifier.group(for: entry.text) != nil { return .lenker }
+        return .utklipp
+    }
+
+    var textClipCount: Int { clipboardEntries.filter { tabFor($0) == .utklipp }.count }
+    var linkClipCount: Int { clipboardEntries.filter { tabFor($0) == .lenker }.count }
+    var imageClipCount: Int { clipboardEntries.filter { tabFor($0) == .bilder }.count }
 
     // MARK: - Services
 
@@ -318,6 +336,7 @@ final class StashViewModel: ObservableObject {
 
         performAutoCleanup()
         migrateLegacyBundleFiles()
+        migrateClipboardAutoGroups()
         seedDefaultPromptCategoriesIfNeeded()
 
         // Ensure default set exists
@@ -716,13 +735,9 @@ final class StashViewModel: ObservableObject {
         // Don't add duplicates of the most recent entry
         if let last = clipboardEntries.first, last.text == text { return }
 
-        // Lenker rutes til sin dedikerte gruppe og overstyrer aktiv mål-gruppe.
-        var targetGroupId = activeClipboardGroupId
-        if autoGroupLinks, let linkGroup = LinkClassifier.group(for: text) {
-            targetGroupId = ensureClipboardGroup(named: linkGroup.rawValue)
-        }
-
-        let entry = ClipboardEntry(text: text, groupId: targetGroupId)
+        // Lenker holdes ugruppert (de vises i sin egen Lenker-tab, ikke i tekst-gruppene).
+        let routeToLinks = autoGroupLinks && LinkClassifier.group(for: text) != nil
+        let entry = ClipboardEntry(text: text, groupId: routeToLinks ? nil : activeClipboardGroupId)
         clipboardEntries.insert(entry, at: 0)
 
         enforceClipboardLimit()
@@ -749,9 +764,8 @@ final class StashViewModel: ObservableObject {
             return
         }
 
-        // Bilder samles i sin egen "Bilder"-gruppe (overstyrer aktiv mål-gruppe).
-        let groupId = ensureClipboardGroup(named: "Bilder")
-        let entry = ClipboardEntry(imageFileName: filename, groupId: groupId)
+        // Bilder holdes ugruppert (de vises i sin egen Bilder-tab).
+        let entry = ClipboardEntry(imageFileName: filename, groupId: nil)
         clipboardEntries.insert(entry, at: 0)
 
         enforceClipboardLimit()
@@ -1044,13 +1058,34 @@ final class StashViewModel: ObservableObject {
     }
 
     /// Finner en eksisterende gruppe på navn (case-insensitivt) eller oppretter den.
-    /// Brukes av lenke-auto-grupperingen for å rute kopierte lenker.
     @discardableResult
     func ensureClipboardGroup(named name: String) -> UUID {
         if let existing = clipboardGroups.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
             return existing.id
         }
         return createClipboardGroup(name: name).id
+    }
+
+    /// Engangs-migrering: fjerner de gamle auto-gruppene (Linker/YouTube/GitHub/
+    /// Hugging Face/Bilder) og setter entriene deres ugruppert, slik at de
+    /// klassifiseres til de nye under-tabene (Lenker/Bilder) i stedet for å henge
+    /// igjen som tomme gruppe-seksjoner i Utklipp-taben. Idempotent.
+    private func migrateClipboardAutoGroups() {
+        let autoNames: Set<String> = ["Linker", "YouTube", "GitHub", "Hugging Face", "Bilder"]
+        let autoIds = Set(clipboardGroups.filter { autoNames.contains($0.name) }.map { $0.id })
+        guard !autoIds.isEmpty else { return }
+
+        for i in clipboardEntries.indices where clipboardEntries[i].groupId.map({ autoIds.contains($0) }) == true {
+            clipboardEntries[i].groupId = nil
+        }
+        clipboardGroups.removeAll { autoNames.contains($0.name) }
+        if let active = activeClipboardGroupId, autoIds.contains(active) {
+            activeClipboardGroupId = nil
+        }
+        expandedClipboardGroupIds = expandedClipboardGroupIds.filter { id in
+            id == nil || clipboardGroups.contains(where: { $0.id == id })
+        }
+        scheduleSave()
     }
 
     func renameClipboardGroup(id: UUID, name: String) {

@@ -225,8 +225,8 @@ struct SettingsSheet: View {
                 )
 
                 settingsToggle(
-                    title: "Grupper lenker automatisk",
-                    subtitle: "Kopierte lenker havner i egne grupper: YouTube, GitHub, Hugging Face \u{2014} resten i \u{00AB}Linker\u{00BB}",
+                    title: "Samle lenker i egen Lenker-tab",
+                    subtitle: "Kopierte lenker havner i Lenker-taben, seksjonert: YouTube, GitHub, Hugging Face \u{2014} resten under \u{00AB}Andre lenker\u{00BB}",
                     isOn: Binding(
                         get: { viewModel.autoGroupLinks },
                         set: { newVal in
@@ -238,7 +238,7 @@ struct SettingsSheet: View {
 
                 settingsToggle(
                     title: "Fang kopierte bilder",
-                    subtitle: "Bilder du kopierer (f.eks. fra Google) samles i \u{00AB}Bilder\u{00BB}-gruppa \u{2014} marker og dra dem inn i canvas/ChatGPT",
+                    subtitle: "Bilder du kopierer (f.eks. fra Google) samles i egen Bilder-tab \u{2014} marker og dra dem inn i canvas/ChatGPT",
                     isOn: Binding(
                         get: { viewModel.captureImages },
                         set: { newVal in
